@@ -1,6 +1,6 @@
 class_name Actor
 extends CharacterBody3D
-## Base de heróis e inimigos: vida, dano, recuo, piscar branco e barra de vida.
+## Base de heróis e inimigos: vida, dano, recuo e piscar branco.
 
 signal damaged(amount: float)
 signal died
@@ -62,7 +62,7 @@ func build_body(color: Color, height: float = 1.6, radius: float = 0.45, nose_co
 	shape.position.y = height * 0.5
 	add_child(shape)
 
-	_build_health_bar(height + 0.5)
+	# Sem barra de vida em cima dos personagens: a vida fica só no HUD.
 
 
 func _build_health_bar(y: float) -> void:

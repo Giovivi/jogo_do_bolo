@@ -93,6 +93,8 @@ func _build_down_marker() -> void:
 	_down_label.pixel_size = 0.01
 	_down_label.outline_size = 10
 	_down_label.position.y = 2.4
+	# O aviso de caído e a reanimação aparecem no retrato do HUD, não em cima do herói.
+	_down_label.visible = false
 	_down_marker.add_child(_down_label)
 
 
