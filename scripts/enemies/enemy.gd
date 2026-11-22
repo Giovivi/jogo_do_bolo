@@ -129,7 +129,7 @@ func activate() -> void:
 	if active:
 		return
 	active = true
-	Game.damage_number(global_position + Vector3(0, 0.5, 0), "!", Color(1, 0.9, 0.2))
+	Game.float_mark(global_position + Vector3(0, 0.5, 0), "!", Color(1, 0.9, 0.2))
 
 
 func _fire() -> void:
@@ -150,7 +150,6 @@ func take_damage(amount: float, source: Node = null, info: Dictionary = {}) -> f
 		var to_src := (source as Node3D).global_position - global_position
 		to_src.y = 0.0
 		if to_src.normalized().dot(facing) > 0.35:
-			Game.damage_number(global_position, "bloqueado", Color(0.7, 0.85, 1.0))
 			knockback_velocity = -to_src.normalized() * 1.0
 			return 0.0
 	return super.take_damage(amount, source, info)
