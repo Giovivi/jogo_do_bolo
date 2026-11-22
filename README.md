@@ -66,16 +66,13 @@ Os baús e grupos de inimigos são sorteados entre pontos candidatos (`Marker3D`
 
 ## Câmera e cenário em corte
 
-A fase é vista como uma maquete em corte: tudo em volta das salas é estrutura maciça (não há vazio nem topo de parede solta). As paredes do fundo sobem até 3 m e formam o cenário. A estrutura do lado da câmera fica cortada a 0,5 m, então nada fica entre a câmera e o grupo.
+A câmera padrão olha de frente para a parede do fundo, com 22° de inclinação e perspectiva (opção B da prancha aprovada). A fase é vista como uma maquete em corte:
+- Em volta das salas tudo é estrutura maciça, então não aparece vazio.
+- A estrutura do fundo sobe até 6 m (parede de 3 m mais estrutura acima) e forma o cenário.
+- A estrutura do lado da câmera fica cortada a 0,5 m.
+- O vidro aparece como uma mureta de 1 m, mas continua bloqueando a passagem.
 
-Em `data/regras.tres` (grupo "Câmera") dá para testar:
-- `camera_yaw_degrees`: 45 é a isométrica clássica, e 0 olha de frente para a parede do fundo, como nas referências.
-- `camera_pitch_degrees`: inclinação (padrão 30°).
-- `camera_perspective`: liga a perspectiva, que dá mais profundidade. `camera_fov` controla a abertura.
-- `camera_view_height`: quanto da fase cabe na tela.
-- `cutaway_height` e `cutaway_margin`: altura e alcance do corte.
-
-O corte é recalculado a partir desses ângulos quando a fase carrega, e a mira pelo mouse funciona em todos os modos.
+Em `data/regras.tres` (grupos "Câmera" e "Cenário em corte") dá para ajustar o giro, a inclinação, a perspectiva, a abertura (`camera_fov`), o enquadramento e as alturas do corte. Para voltar à isométrica antiga, use giro 45, inclinação 30 e `camera_perspective` desligado. A mira pelo mouse funciona em todos os modos.
 
 ## Onde ajustar os números
 

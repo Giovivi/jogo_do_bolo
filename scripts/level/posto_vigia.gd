@@ -12,6 +12,7 @@ signal run_completed
 const WALL_H := 3.0
 const WALL_T := 0.5
 const FADE_RADIUS := 6.0
+const GLASS_VISUAL_H := 1.0
 
 const SOLDIER: EnemyStats = preload("res://data/soldado.tres")
 const SHIELD_SOLDIER: EnemyStats = preload("res://data/soldado_escudo.tres")
@@ -356,7 +357,8 @@ func _build_structure() -> void:
 	var yaw := deg_to_rad(Game.rules.camera_yaw_degrees)
 	var view := Vector2(-sin(yaw), -cos(yaw))
 	var pitch := deg_to_rad(maxf(Game.rules.camera_pitch_degrees, 5.0))
-	var reach := WALL_H / tan(pitch) + Game.rules.cutaway_margin
+	var back_h := maxf(Game.rules.backdrop_height, WALL_H)
+	var reach := back_h / tan(pitch) + Game.rules.cutaway_margin
 
 	# 0 = aberto, 1 = estrutura baixa (cortada), 2 = estrutura alta.
 	var kind := PackedByteArray()
@@ -383,8 +385,11 @@ func _build_structure() -> void:
 	var low_h := Game.rules.cutaway_height
 	var st_wall := _surface()
 	var st_cap := _surface()
+	var st_upper := _surface()
+	var st_trim := _surface()
 	var st_cut := _surface()
 	var st_cut_cap := _surface()
+	var unused := _surface()
 	for iz in nz:
 		var ix := 0
 		while ix < nx:
@@ -400,13 +405,18 @@ func _build_structure() -> void:
 			var z0 := float(z_min + iz) * cell
 			var z1 := z0 + cell
 			if kd == 2:
-				_add_box(st_wall, st_cap, Vector3(x0, 0.0, z0), Vector3(x1, WALL_H, z1))
+				# Parede de 3 m, faixa escura no topo dela e estrutura acima.
+				_add_box(st_wall, unused, Vector3(x0, 0.0, z0), Vector3(x1, WALL_H - 0.25, z1))
+				_add_box(st_trim, unused, Vector3(x0, WALL_H - 0.25, z0), Vector3(x1, WALL_H, z1))
+				_add_box(st_upper, st_cap, Vector3(x0, WALL_H, z0), Vector3(x1, back_h, z1))
 			else:
 				_add_box(st_cut, st_cut_cap, Vector3(x0, 0.0, z0), Vector3(x1, low_h, z1))
 
 	var mesh := ArrayMesh.new()
 	_commit(st_wall, mesh, Color(0.58, 0.6, 0.64))
-	_commit(st_cap, mesh, Color(0.16, 0.17, 0.2))
+	_commit(st_trim, mesh, Color(0.24, 0.25, 0.28))
+	_commit(st_upper, mesh, Color(0.35, 0.37, 0.4))
+	_commit(st_cap, mesh, Color(0.14, 0.15, 0.17))
 	_commit(st_cut, mesh, Color(0.3, 0.31, 0.34))
 	_commit(st_cut_cap, mesh, Color(0.22, 0.23, 0.26))
 	var mi := MeshInstance3D.new()
@@ -552,15 +562,22 @@ func _room(x0: float, z0: float, x1: float, z1: float, color: Color, openings: D
 func _side_wall(side: String, a: float, b: float, x0: float, z0: float, x1: float, z1: float, is_glass: bool) -> void:
 	var t := WALL_T
 	var col := Color(0.55, 0.8, 1.0, 0.35) if is_glass else Color(0.62, 0.63, 0.66)
+	var body: StaticBody3D
 	match side:
 		"N":
-			_wall(a, z0 - t, b, z0, WALL_H, col)
+			body = _wall(a, z0 - t, b, z0, WALL_H, col)
 		"S":
-			_wall(a, z1, b, z1 + t, WALL_H, col)
+			body = _wall(a, z1, b, z1 + t, WALL_H, col)
 		"W":
-			_wall(x0 - t, a, x0, b, WALL_H, col)
-		"E":
-			_wall(x1, a, x1 + t, b, WALL_H, col)
+			body = _wall(x0 - t, a, x0, b, WALL_H, col)
+		_:
+			body = _wall(x1, a, x1 + t, b, WALL_H, col)
+	if is_glass:
+		# O vidro aparece como mureta de 1 m (continua bloqueando 3 m).
+		var mi := body.get_child(1) as MeshInstance3D
+		var bm := mi.mesh as BoxMesh
+		bm.size = Vector3(bm.size.x, GLASS_VISUAL_H, bm.size.z)
+		mi.position.y = GLASS_VISUAL_H * 0.5 - WALL_H * 0.5
 
 
 ## Corredor leste-oeste de 4 m de largura centrado em z.

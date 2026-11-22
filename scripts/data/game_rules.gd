@@ -4,12 +4,12 @@ extends Resource
 
 @export_group("Câmera")
 ## Giro em torno do eixo vertical (45 = isométrica clássica, 0 = de frente).
-@export var camera_yaw_degrees: float = 45.0
+@export var camera_yaw_degrees: float = 0.0
 ## Inclinação para baixo (mais perto de 0 = câmera mais baixa).
-@export var camera_pitch_degrees: float = 30.0
+@export var camera_pitch_degrees: float = 22.0
 ## Falso = ortográfica; verdadeiro = perspectiva (dá mais profundidade).
-@export var camera_perspective: bool = false
-@export var camera_fov: float = 30.0
+@export var camera_perspective: bool = true
+@export var camera_fov: float = 35.0
 ## Altura (em metros) do quadro visível.
 @export var camera_view_height: float = 15.0
 
@@ -18,6 +18,9 @@ extends Resource
 @export var cutaway_height: float = 0.5
 ## Margem extra (m) da faixa cortada além do que a parede alta esconderia.
 @export var cutaway_margin: float = 1.5
+## Altura da estrutura do fundo (parede de 3 m + estrutura acima), para
+## não aparecer vazio acima das paredes com a câmera baixa.
+@export var backdrop_height: float = 6.0
 
 @export_group("Troca de personagem")
 @export var switch_cooldown: float = 3.0
