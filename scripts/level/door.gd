@@ -42,6 +42,8 @@ func setup(size: Vector3, color: Color) -> void:
 		_label.outline_size = 8
 		_label.position.y = size.y + 0.5
 		add_child(_label)
+		# Sem texto em cima da porta: o cadeado do HUD já avisa quem abre.
+		_label.visible = false
 
 
 ## Chamado pelo laser do Feixe enquanto o feixe toca a porta.
