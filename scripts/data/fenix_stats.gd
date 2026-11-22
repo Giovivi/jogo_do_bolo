@@ -34,6 +34,8 @@ extends HeroStats
 @export var regen_delay: float = 4.0
 @export var regen_per_second: float = 3.0
 
-@export_group("Planar (exploração)")
-@export var glide_max_distance: float = 5.0
-@export var glide_speed: float = 7.0
+@export_group("Planar (exploração): segurar Espaço no ar")
+## Pulo + planar cobre cerca de 5 m: passa o vão de 4 m, não o de 6 m.
+@export var glide_max_distance: float = 4.0
+@export var glide_speed: float = 6.5
+@export var glide_fall_speed: float = 1.2

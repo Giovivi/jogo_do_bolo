@@ -63,8 +63,9 @@ func claw_attack() -> bool:
 	var hit_any := false
 	for e in Game.living_enemies():
 		var enemy := e as Actor
-		if enemy.flying:
-			continue # garras não alcançam drones
+		# Garras alcançam até 1,5 m de altura: drones só pulando junto.
+		if not Game.vertical_ok(global_position.y, enemy, Game.REACH_MELEE):
+			continue
 		if Game.in_cone(global_position, facing, enemy.global_position, s.claw_range, s.claw_arc_degrees, enemy.body_radius):
 			var info := {
 				"knockback": s.finisher_knockback if finisher else 1.5,
@@ -92,7 +93,8 @@ func fire_wings() -> bool:
 	Game.flash_cone(global_position, facing, s.wings_range, s.wings_arc_degrees, Color(1.0, 0.35, 0.05, 0.7), 0.35)
 	for e in Game.living_enemies():
 		var enemy := e as Actor
-		if Game.in_cone(global_position, facing, enemy.global_position, s.wings_range, s.wings_arc_degrees, enemy.body_radius):
+		if Game.in_cone(global_position, facing, enemy.global_position, s.wings_range, s.wings_arc_degrees, enemy.body_radius) \
+				and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
 			deal_damage(enemy, s.wings_damage, {"knockback": 3.0, "dir": facing, "ability": true, "heavy": true, "color": Color(1, 0.6, 0.2)})
 	return true
 
@@ -140,6 +142,11 @@ func use_special(aim: Vector3) -> bool:
 		var back := (global_position - p)
 		back.y = 0.0
 		dest = Vector3(p.x, global_position.y, p.z) + back.normalized() * 0.8
+	# Pousa na altura do chão de destino (plataforma, chão ou vão).
+	var down := Game.raycast_world(dest + Vector3(0, 6, 0), dest + Vector3(0, -6, 0), Game.LAYER_WORLD | Game.LAYER_WALKWAY)
+	if not down.is_empty():
+		var g: Vector3 = down["position"]
+		dest.y = g.y + 0.05
 	busy = true
 	invulnerable = true
 	ability_lock = s.dive_time + 0.1
@@ -152,7 +159,7 @@ func use_special(aim: Vector3) -> bool:
 
 func _dive_step(t: float, start: Vector3, dest: Vector3) -> void:
 	var pos := start.lerp(dest, t)
-	pos.y = start.y + sin(t * PI) * 4.0
+	pos.y += sin(t * PI) * 4.0
 	global_position = pos
 
 
@@ -160,15 +167,14 @@ func _dive_land() -> void:
 	var s := _fx()
 	busy = false
 	invulnerable = false
-	global_position.y = 0.05
+	velocity = Vector3.ZERO
 	Game.flash_ring(global_position, s.dive_radius, Color(1.0, 0.4, 0.1, 0.8), 0.5)
 	Game.hitstop()
 	for e in Game.living_enemies():
 		var enemy := e as Actor
-		if Game.flat_distance(enemy.global_position, global_position) <= s.dive_radius + enemy.body_radius:
+		if Game.flat_distance(enemy.global_position, global_position) <= s.dive_radius + enemy.body_radius \
+				and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
 			deal_damage(enemy, s.dive_damage, {"knockback": 8.0, "ability": true, "color": Color(1, 0.5, 0.1)})
-	if Game.is_over_gap(global_position):
-		_fall_into_gap()
 
 
 # ---------------------------------------------------------------- passivas
@@ -184,7 +190,8 @@ func _on_health_depleted(_source: Node) -> void:
 		Game.hitstop()
 		for e in Game.living_enemies():
 			var enemy := e as Actor
-			if Game.flat_distance(enemy.global_position, global_position) <= s.rebirth_radius + enemy.body_radius:
+			if Game.flat_distance(enemy.global_position, global_position) <= s.rebirth_radius + enemy.body_radius \
+					and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
 				deal_damage(enemy, s.rebirth_damage, {"knockback": 7.0, "ability": true, "color": Color(1, 0.5, 0.1)})
 		return
 	go_down()
@@ -198,48 +205,48 @@ func _process_regen(delta: float) -> void:
 
 # ---------------------------------------------------------------- planar
 
-func try_dash(move: Vector3) -> void:
-	var dir := move if move.length() > 0.1 else facing
-	dir.y = 0.0
-	if Game.gap_ahead(global_position, dir, 1.5):
-		_start_glide(dir.normalized())
-		return
-	super.try_dash(move)
-
-
-func _start_glide(dir: Vector3) -> void:
-	_gliding = true
-	busy = true
-	_glide_dir = dir
-	_glide_travelled = 0.0
-	collision_mask = Game.MASK_HERO_GLIDING
-	visual.scale = Vector3(1.5, 0.6, 1.0)
-
-
-func _process_busy(delta: float) -> void:
-	if not _gliding:
-		return
+## No ar, caindo, segurar Espaço faz o Fênix planar: cai devagar e anda
+## até glide_max_distance metros. Termina ao soltar, ao acabar a distância
+## ou ao pousar.
+func _air_motion(v: Vector3, move: Vector3, on_floor: bool, delta: float) -> Vector3:
 	var s := _fx()
-	var holding := Input.is_action_pressed("dash") if controlled else true
-	var step := s.glide_speed * delta
-	velocity = _glide_dir * s.glide_speed
-	move_and_slide()
-	_glide_travelled += step
-	var over_gap := Game.is_over_gap(global_position)
-	var done := (not holding) or _glide_travelled >= s.glide_max_distance or (not over_gap and _glide_travelled > 1.5)
-	if done:
-		_gliding = false
-		busy = false
-		collision_mask = Game.MASK_HERO
-		visual.scale = Vector3.ONE
-		if Game.is_over_gap(global_position):
-			_fall_into_gap()
-		else:
-			last_safe_position = global_position
+	var holding := controlled and Input.is_action_pressed("jump")
+	if _gliding and (on_floor or not holding or _glide_travelled >= s.glide_max_distance):
+		_end_glide()
+	elif not _gliding and not on_floor and holding and v.y < 0.0 and _glide_travelled < s.glide_max_distance:
+		_gliding = true
+		_glide_dir = move if move.length() > 0.1 else facing
+		_glide_dir.y = 0.0
+		_glide_dir = _glide_dir.normalized()
+		visual.scale = Vector3(1.6, 0.6, 1.0)
+	if _gliding:
+		if move.length() > 0.1:
+			_glide_dir = _glide_dir.lerp(Vector3(move.x, 0.0, move.z).normalized(), clampf(4.0 * delta, 0.0, 1.0)).normalized()
+		v.x = _glide_dir.x * s.glide_speed
+		v.z = _glide_dir.z * s.glide_speed
+		v.y = maxf(v.y, -s.glide_fall_speed)
+		_glide_travelled += s.glide_speed * delta
+	return v
+
+
+func _end_glide() -> void:
+	_gliding = false
+	visual.scale = Vector3.ONE
+
+
+## A distância do planar só volta ao pousar (um planar por pulo).
+func _on_grounded() -> void:
+	_glide_travelled = 0.0
+	if _gliding:
+		_end_glide()
+
+
+func is_gliding() -> bool:
+	return _gliding
 
 
 func go_down() -> void:
-	_gliding = false
+	_end_glide()
 	super.go_down()
 
 

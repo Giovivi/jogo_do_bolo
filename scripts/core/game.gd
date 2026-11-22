@@ -7,8 +7,14 @@ const LAYER_ENEMIES := 4
 const LAYER_GAPS := 8
 const LAYER_WALKWAY := 16
 
-const MASK_HERO := LAYER_WORLD | LAYER_ENEMIES | LAYER_GAPS | LAYER_WALKWAY
-const MASK_HERO_GLIDING := LAYER_WORLD | LAYER_ENEMIES | LAYER_WALKWAY
+## Heróis não colidem com o bloqueio dos vãos (os vãos são buracos de
+## verdade: dá para pular, planar ou cair). Inimigos continuam bloqueados.
+const MASK_HERO := LAYER_WORLD | LAYER_ENEMIES | LAYER_WALKWAY
+const MASK_HERO_GLIDING := MASK_HERO
+
+## Alcance vertical: golpes e cones curtos / tiros, laser e áreas grandes.
+const REACH_MELEE := 1.5
+const REACH_RANGED := 3.0
 const MASK_ENEMY := LAYER_WORLD | LAYER_HEROES | LAYER_ENEMIES | LAYER_GAPS | LAYER_WALKWAY
 const MASK_DRONE := LAYER_WORLD | LAYER_ENEMIES
 
@@ -76,6 +82,7 @@ func _setup_inputs() -> void:
 	_add_key("ability_2", KEY_E)
 	_add_key("special", KEY_R)
 	_add_key("dash", KEY_SHIFT)
+	_add_key("jump", KEY_SPACE)
 	_add_key("switch_1", KEY_1)
 	_add_key("switch_2", KEY_2)
 	_add_key("switch_3", KEY_3)
@@ -151,9 +158,14 @@ func raycast_world(from: Vector3, to: Vector3, mask: int = LAYER_WORLD) -> Dicti
 
 
 func has_line_of_sight(a: Vector3, b: Vector3) -> bool:
-	var from := Vector3(a.x, 1.0, a.z)
-	var to := Vector3(b.x, 1.0, b.z)
+	var from := Vector3(a.x, a.y + 1.2, a.z)
+	var to := Vector3(b.x, b.y + 1.2, b.z)
 	return raycast_world(from, to).is_empty()
+
+
+## O alvo está dentro do alcance vertical de quem ataca (pés em from_y)?
+func vertical_ok(from_y: float, target: Actor, reach: float) -> bool:
+	return absf(target.global_position.y + target.hover_offset - from_y) <= reach
 
 
 func is_over_gap(pos: Vector3) -> bool:

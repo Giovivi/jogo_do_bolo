@@ -150,7 +150,8 @@ func _tick_laser(delta: float) -> void:
 		_laser_tick = 0.0
 		for e in Game.living_enemies():
 			var enemy := e as Actor
-			if Game.flat_distance_to_segment(enemy.global_position, from, to) <= s.laser_width * 0.5 + enemy.body_radius:
+			if Game.flat_distance_to_segment(enemy.global_position, from, to) <= s.laser_width * 0.5 + enemy.body_radius \
+					and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
 				deal_damage(enemy, dmg, {"knockback": 0.3, "dir": facing, "ability": true, "color": Color(1, 0.4, 0.4)})
 
 
@@ -165,7 +166,8 @@ func repulsion_pulse() -> bool:
 	Game.flash_cone(global_position, facing, s.pulse_range, s.pulse_arc_degrees, Color(0.4, 0.7, 1.0, 0.6), 0.3)
 	for e in Game.living_enemies():
 		var enemy := e as Actor
-		if Game.in_cone(global_position, facing, enemy.global_position, s.pulse_range, s.pulse_arc_degrees, enemy.body_radius):
+		if Game.in_cone(global_position, facing, enemy.global_position, s.pulse_range, s.pulse_arc_degrees, enemy.body_radius) \
+				and Game.vertical_ok(global_position.y, enemy, Game.REACH_MELEE):
 			var dir := enemy.global_position - global_position
 			dir.y = 0.0
 			deal_damage(enemy, s.pulse_damage, {"knockback": s.pulse_knockback, "dir": dir, "ability": true, "heavy": true})
@@ -182,7 +184,8 @@ func use_special(_aim: Vector3) -> bool:
 	Game.hitstop()
 	for e in Game.living_enemies():
 		var enemy := e as Actor
-		if Game.flat_distance_to_segment(enemy.global_position, from, to) <= s.blast_width * 0.5 + enemy.body_radius:
+		if Game.flat_distance_to_segment(enemy.global_position, from, to) <= s.blast_width * 0.5 + enemy.body_radius \
+				and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
 			deal_damage(enemy, s.blast_damage, {"knockback": 6.0, "dir": facing, "ability": true, "heavy": true, "color": Color(1, 0.3, 0.3)})
 	return true
 

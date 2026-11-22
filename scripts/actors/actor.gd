@@ -10,6 +10,8 @@ var max_health: float = 100.0
 var health: float = 100.0
 var is_dead: bool = false
 var flying: bool = false
+## Altura do corpo acima da posição (drones voam acima do próprio nó).
+var hover_offset: float = 0.0
 var body_radius: float = 0.45
 var invulnerable: bool = false
 var body_color: Color = Color.WHITE
@@ -23,6 +25,9 @@ var body_material: StandardMaterial3D
 var _bar_root: Node3D
 var _bar_fill: MeshInstance3D
 var _flash_time: float = 0.0
+var _blob: MeshInstance3D
+
+static var _blob_tex: GradientTexture2D
 
 
 func build_body(color: Color, height: float = 1.6, radius: float = 0.45, nose_color: Color = Color(0.1, 0.1, 0.1)) -> void:
@@ -63,6 +68,55 @@ func build_body(color: Color, height: float = 1.6, radius: float = 0.45, nose_co
 	add_child(shape)
 
 	_build_health_bar(height + 0.5)
+	_build_blob_shadow(radius)
+
+
+## Sombra redonda sempre no chão embaixo do ator, até no ar: é o que mostra
+## a altura do pulo na câmera baixa.
+func _build_blob_shadow(radius: float) -> void:
+	_blob = MeshInstance3D.new()
+	var m := PlaneMesh.new()
+	m.size = Vector2(radius * 2.4, radius * 2.4)
+	_blob.mesh = m
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0, 0, 0, 0.45)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_texture = _blob_texture()
+	_blob.material_override = mat
+	_blob.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_blob.top_level = true
+	add_child(_blob)
+
+
+static func _blob_texture() -> GradientTexture2D:
+	if _blob_tex == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		g.add_point(0.7, Color(1, 1, 1, 0.9))
+		_blob_tex = GradientTexture2D.new()
+		_blob_tex.gradient = g
+		_blob_tex.fill = GradientTexture2D.FILL_RADIAL
+		_blob_tex.fill_from = Vector2(0.5, 0.5)
+		_blob_tex.fill_to = Vector2(1.0, 0.5)
+	return _blob_tex
+
+
+func _update_blob_shadow() -> void:
+	if _blob == null:
+		return
+	if is_dead and not (self is Hero):
+		_blob.visible = false
+		return
+	var top := global_position + Vector3(0, hover_offset + 0.5, 0)
+	var hit := Game.raycast_world(top, top + Vector3(0, -30, 0), Game.LAYER_WORLD | Game.LAYER_WALKWAY)
+	if hit.is_empty():
+		_blob.visible = false
+		return
+	var p: Vector3 = hit["position"]
+	_blob.visible = true
+	_blob.global_position = p + Vector3(0, 0.03, 0)
 
 
 func _build_health_bar(y: float) -> void:
@@ -156,6 +210,7 @@ func _on_health_depleted(_source: Node) -> void:
 
 
 func tick_visual_feedback(delta: float) -> void:
+	_update_blob_shadow()
 	if body_material == null:
 		return
 	if _flash_time > 0.0:

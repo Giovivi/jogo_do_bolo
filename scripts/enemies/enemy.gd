@@ -29,6 +29,7 @@ func _ready() -> void:
 	build_body(stats.color, h, stats.body_radius, Color(0.95, 0.9, 0.2))
 	set_bar_color(Color(0.95, 0.3, 0.3))
 	if flying:
+		hover_offset = stats.hover_height
 		collision_mask = Game.MASK_DRONE
 		for c in get_children():
 			if c is Node3D:

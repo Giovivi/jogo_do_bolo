@@ -47,13 +47,19 @@ func _process(delta: float) -> void:
 	if target == null or not is_instance_valid(target):
 		return
 	var goal := target.global_position
-	goal.y = 0.0
+	# Altura: acompanha plataformas devagar, sem balançar a cada pulo.
+	var ground_y := goal.y
+	if target is CharacterBody3D and not (target as CharacterBody3D).is_on_floor():
+		ground_y = _focus.y
+	goal.y = ground_y
 	if _slide_t < 1.0:
 		_slide_t = minf(1.0, _slide_t + delta / Game.rules.camera_slide_time)
 		var k := 1.0 - pow(1.0 - _slide_t, 3.0)
 		_focus = _slide_from.lerp(goal, k)
 	else:
+		var y := lerpf(_focus.y, goal.y, 1.0 - exp(-4.0 * delta))
 		_focus = _focus.lerp(goal, 1.0 - exp(-14.0 * delta))
+		_focus.y = y
 	_place()
 
 
