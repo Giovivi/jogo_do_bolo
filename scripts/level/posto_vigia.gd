@@ -25,6 +25,10 @@ var feixe_cell_position := Vector3(60, 0, -7)
 
 var rng := RandomNumberGenerator.new()
 var _walls: Array[Dictionary] = []
+## Áreas de chão andável (x0, z0, largura, profundidade).
+var _floor_rects: Array[Rect2] = []
+## Áreas que ficam abertas sem ser chão (vão entre os vidros da triagem e do cofre).
+var _open_rects: Array[Rect2] = []
 var _hints: Array[Dictionary] = []
 var _cage_front: StaticBody3D
 var _service_door: Door
@@ -54,6 +58,7 @@ func build() -> void:
 	_build_celas()
 	_build_hangar()
 	_build_volta()
+	_build_structure()
 	Game.chests_total = get_tree().get_nodes_in_group("chests").size()
 
 
@@ -172,6 +177,10 @@ func _build_volta() -> void:
 	_enemy_group("Corredor", SOLDIER, 2, [Vector3(60, 0, 23), Vector3(70, 0, 23), Vector3(50, 0, 23)])
 	# Cofre blindado, visto pelo vidro da triagem.
 	var vc := Color(0.45, 0.42, 0.33)
+	# Fosso de serviço entre o vidro da triagem e o do cofre: fica aberto
+	# para o cofre aparecer, mas não é chão andável.
+	_open_rects.append(Rect2(26, 10, 8, 6))
+	_box_visual(Vector3(30, -0.6, 13), Vector3(8, 0.2, 6), Color(0.12, 0.13, 0.15))
 	_room(24, 16, 36, 28, vc, {"E": [[23.0, 4.0]], "W": [[22.0, 4.0]]}, {"N": [[30.0, 8.0]]})
 	_label("cofre", Vector3(30, 0, 26.5))
 	var blast := Door.new()
@@ -313,6 +322,154 @@ func _update_wall_fade(hero_pos: Vector3) -> void:
 				mat.albedo_color = base
 
 
+# ================================================================ estrutura em corte
+
+## Preenche todo o entorno das salas com estrutura maciça, para não haver
+## "buraco" no mapa. Perto do lado da câmera, a estrutura é cortada baixa
+## (como uma maquete em corte); no fundo, sobe até a altura das paredes.
+func _build_structure() -> void:
+	var cell := 1.0
+	var x_min := -30
+	var x_max := 126
+	var z_min := -46
+	var z_max := 52
+	var nx := x_max - x_min
+	var nz := z_max - z_min
+	var open := PackedByteArray()
+	open.resize(nx * nz)
+	for iz in nz:
+		for ix in nx:
+			var p := Vector2(x_min + ix + 0.5, z_min + iz + 0.5)
+			var v := 0
+			for r in _floor_rects:
+				if r.has_point(p):
+					v = 1
+					break
+			if v == 0:
+				for r in _open_rects:
+					if r.has_point(p):
+						v = 2
+						break
+			open[iz * nx + ix] = v
+
+	# Direção em que a câmera olha, no chão.
+	var yaw := deg_to_rad(Game.rules.camera_yaw_degrees)
+	var view := Vector2(-sin(yaw), -cos(yaw))
+	var pitch := deg_to_rad(maxf(Game.rules.camera_pitch_degrees, 5.0))
+	var reach := WALL_H / tan(pitch) + Game.rules.cutaway_margin
+
+	# 0 = aberto, 1 = estrutura baixa (cortada), 2 = estrutura alta.
+	var kind := PackedByteArray()
+	kind.resize(nx * nz)
+	for iz in nz:
+		for ix in nx:
+			var idx := iz * nx + ix
+			if open[idx] != 0:
+				kind[idx] = 0
+				continue
+			var c := Vector2(x_min + ix + 0.5, z_min + iz + 0.5)
+			var low := false
+			var k := 0.5
+			while k <= reach:
+				var q := c + view * k
+				var qx := int(floor(q.x)) - x_min
+				var qz := int(floor(q.y)) - z_min
+				if qx >= 0 and qx < nx and qz >= 0 and qz < nz and open[qz * nx + qx] != 0:
+					low = true
+					break
+				k += 0.5
+			kind[idx] = 1 if low else 2
+
+	var low_h := Game.rules.cutaway_height
+	var st_wall := _surface()
+	var st_cap := _surface()
+	var st_cut := _surface()
+	var st_cut_cap := _surface()
+	for iz in nz:
+		var ix := 0
+		while ix < nx:
+			var kd := kind[iz * nx + ix]
+			if kd == 0:
+				ix += 1
+				continue
+			var start := ix
+			while ix < nx and kind[iz * nx + ix] == kd:
+				ix += 1
+			var x0 := float(x_min + start) * cell
+			var x1 := float(x_min + ix) * cell
+			var z0 := float(z_min + iz) * cell
+			var z1 := z0 + cell
+			if kd == 2:
+				_add_box(st_wall, st_cap, Vector3(x0, 0.0, z0), Vector3(x1, WALL_H, z1))
+			else:
+				_add_box(st_cut, st_cut_cap, Vector3(x0, 0.0, z0), Vector3(x1, low_h, z1))
+
+	var mesh := ArrayMesh.new()
+	_commit(st_wall, mesh, Color(0.58, 0.6, 0.64))
+	_commit(st_cap, mesh, Color(0.16, 0.17, 0.2))
+	_commit(st_cut, mesh, Color(0.3, 0.31, 0.34))
+	_commit(st_cut_cap, mesh, Color(0.22, 0.23, 0.26))
+	var mi := MeshInstance3D.new()
+	mi.name = "Estrutura"
+	mi.mesh = mesh
+	add_child(mi)
+
+	# As paredes que ficaram dentro da estrutura continuam colidindo,
+	# mas não precisam mais aparecer.
+	var kept: Array[Dictionary] = []
+	for w in _walls:
+		var r: Rect2 = w["rect"]
+		if _rect_fully_solid(r, open, x_min, z_min, nx, nz):
+			var body: StaticBody3D = w["body"]
+			(body.get_child(1) as MeshInstance3D).visible = false
+		else:
+			kept.append(w)
+	_walls = kept
+
+
+func _rect_fully_solid(r: Rect2, open: PackedByteArray, x_min: int, z_min: int, nx: int, nz: int) -> bool:
+	var ix0 := int(floor(r.position.x + 0.01)) - x_min
+	var ix1 := int(ceil(r.end.x - 0.01)) - x_min
+	var iz0 := int(floor(r.position.y + 0.01)) - z_min
+	var iz1 := int(ceil(r.end.y - 0.01)) - z_min
+	for iz in range(iz0, iz1):
+		for ix in range(ix0, ix1):
+			if ix < 0 or ix >= nx or iz < 0 or iz >= nz:
+				continue
+			if open[iz * nx + ix] != 0:
+				return false
+	return true
+
+
+func _surface() -> SurfaceTool:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	return st
+
+
+func _commit(st: SurfaceTool, mesh: ArrayMesh, color: Color) -> void:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	st.set_material(mat)
+	st.commit(mesh)
+
+
+## Caixa: laterais em "sides", tampa em "top" (sem fundo).
+func _add_box(sides: SurfaceTool, top: SurfaceTool, a: Vector3, b: Vector3) -> void:
+	_quad(top, Vector3(a.x, b.y, a.z), Vector3(b.x, b.y, a.z), Vector3(b.x, b.y, b.z), Vector3(a.x, b.y, b.z), Vector3.UP)
+	_quad(sides, Vector3(a.x, a.y, b.z), Vector3(b.x, a.y, b.z), Vector3(b.x, b.y, b.z), Vector3(a.x, b.y, b.z), Vector3.BACK)
+	_quad(sides, Vector3(b.x, a.y, a.z), Vector3(a.x, a.y, a.z), Vector3(a.x, b.y, a.z), Vector3(b.x, b.y, a.z), Vector3.FORWARD)
+	_quad(sides, Vector3(b.x, a.y, b.z), Vector3(b.x, a.y, a.z), Vector3(b.x, b.y, a.z), Vector3(b.x, b.y, b.z), Vector3.RIGHT)
+	_quad(sides, Vector3(a.x, a.y, a.z), Vector3(a.x, a.y, b.z), Vector3(a.x, b.y, b.z), Vector3(a.x, b.y, a.z), Vector3.LEFT)
+
+
+func _quad(st: SurfaceTool, p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, normal: Vector3) -> void:
+	for v in [p0, p1, p2, p0, p2, p3]:
+		st.set_normal(normal)
+		st.add_vertex(v)
+
+
 # ================================================================ kit de peças
 
 func _build_lighting() -> void:
@@ -347,6 +504,7 @@ func _build_ground() -> void:
 
 
 func _floor(x0: float, z0: float, x1: float, z1: float, color: Color) -> void:
+	_floor_rects.append(Rect2(x0, z0, x1 - x0, z1 - z0))
 	_box_visual(Vector3((x0 + x1) * 0.5, -0.1, (z0 + z1) * 0.5), Vector3(x1 - x0, 0.2, z1 - z0), color)
 	# Linhas da grade de 2 m.
 	var grid_color := color.darkened(0.15)
@@ -545,7 +703,7 @@ func _spawn_enemy(st: EnemyStats, pos: Vector3, start_active: bool) -> Enemy:
 func _label(text: String, pos: Vector3) -> void:
 	var l := Label3D.new()
 	l.text = text
-	l.rotation_degrees = Vector3(-90, 45, 0)
+	l.rotation_degrees = Vector3(-90, Game.rules.camera_yaw_degrees, 0)
 	l.font_size = 64
 	l.pixel_size = 0.01
 	l.modulate = Color(1, 1, 1, 0.5)

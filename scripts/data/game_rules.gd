@@ -2,6 +2,23 @@ class_name GameRules
 extends Resource
 ## Regras gerais do protótipo (troca, reanimação, feedback).
 
+@export_group("Câmera")
+## Giro em torno do eixo vertical (45 = isométrica clássica, 0 = de frente).
+@export var camera_yaw_degrees: float = 45.0
+## Inclinação para baixo (mais perto de 0 = câmera mais baixa).
+@export var camera_pitch_degrees: float = 30.0
+## Falso = ortográfica; verdadeiro = perspectiva (dá mais profundidade).
+@export var camera_perspective: bool = false
+@export var camera_fov: float = 30.0
+## Altura (em metros) do quadro visível.
+@export var camera_view_height: float = 15.0
+
+@export_group("Cenário em corte (diorama)")
+## Paredes e estrutura do lado da câmera ficam cortadas nesta altura.
+@export var cutaway_height: float = 0.5
+## Margem extra (m) da faixa cortada além do que a parede alta esconderia.
+@export var cutaway_margin: float = 1.5
+
 @export_group("Troca de personagem")
 @export var switch_cooldown: float = 3.0
 @export var camera_slide_time: float = 0.25

@@ -5,7 +5,6 @@ extends CharacterBody3D
 signal damaged(amount: float)
 signal died
 
-const CAMERA_YAW := 0.7853982 # 45° (mesmo giro da câmera)
 
 var max_health: float = 100.0
 var health: float = 100.0
@@ -69,7 +68,7 @@ func build_body(color: Color, height: float = 1.6, radius: float = 0.45, nose_co
 func _build_health_bar(y: float) -> void:
 	_bar_root = Node3D.new()
 	_bar_root.position.y = y
-	_bar_root.rotation.y = CAMERA_YAW
+	_bar_root.rotation.y = deg_to_rad(Game.rules.camera_yaw_degrees)
 	add_child(_bar_root)
 	var bg := MeshInstance3D.new()
 	var bg_mesh := BoxMesh.new()

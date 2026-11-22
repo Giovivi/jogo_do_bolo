@@ -64,6 +64,19 @@ Não há assets externos: a fase, os heróis e os inimigos são montados por có
 
 Os baús e grupos de inimigos são sorteados entre pontos candidatos (`Marker3D` no nó `Candidatos`) a cada entrada. A semente aparece no console da Godot.
 
+## Câmera e cenário em corte
+
+A fase é vista como uma maquete em corte: tudo em volta das salas é estrutura maciça (não há vazio nem topo de parede solta). As paredes do fundo sobem até 3 m e formam o cenário. A estrutura do lado da câmera fica cortada a 0,5 m, então nada fica entre a câmera e o grupo.
+
+Em `data/regras.tres` (grupo "Câmera") dá para testar:
+- `camera_yaw_degrees`: 45 é a isométrica clássica, e 0 olha de frente para a parede do fundo, como nas referências.
+- `camera_pitch_degrees`: inclinação (padrão 30°).
+- `camera_perspective`: liga a perspectiva, que dá mais profundidade. `camera_fov` controla a abertura.
+- `camera_view_height`: quanto da fase cabe na tela.
+- `cutaway_height` e `cutaway_margin`: altura e alcance do corte.
+
+O corte é recalculado a partir desses ângulos quando a fase carrega, e a mira pelo mouse funciona em todos os modos.
+
 ## Onde ajustar os números
 
 Todos os valores ficam em `.tres` na pasta `data/`. Abra na Godot (clique duplo no Inspector) e mude sem mexer em código:
@@ -73,7 +86,7 @@ Todos os valores ficam em `.tres` na pasta `data/`. Abra na Godot (clique duplo 
 | `data/fenix.tres` | vida, velocidade, dash e todo o kit do Fênix |
 | `data/feixe.tres` | vida, velocidade, dash e todo o kit do Feixe |
 | `data/soldado.tres`, `data/soldado_escudo.tres`, `data/drone.tres` | inimigos |
-| `data/regras.tres` | troca, reanimação, IA, números de dano, tempo da cela, dano de queda |
+| `data/regras.tres` | câmera e corte, troca, reanimação, IA, números de dano, tempo da cela, dano de queda |
 
 ## Estrutura
 
