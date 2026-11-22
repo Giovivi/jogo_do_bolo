@@ -62,6 +62,7 @@ func _build_frente() -> void:
 	# Caminho de cimento rachado até a porta.
 	_box_visual_mat(Vector3(0, 0.01, 16), Vector3(4, 0.02, 16), Look.tiles({"tile_a": Color(0.5, 0.49, 0.45), "tile_b": Color(0.46, 0.45, 0.42), "tile_size": 1.0, "grass_amount": 0.3}))
 	_build_fachada()
+	_build_limites_frente()
 	Look.tree(self, Vector3(-15, 0, 12), 1.3, 1)
 	Look.tree(self, Vector3(16, 0, 11), 1.1, 2)
 	Look.tree(self, Vector3(-11, 0, 21), 0.9, 3)
@@ -80,6 +81,30 @@ func _build_frente() -> void:
 	porta.used_door.connect(_move_party)
 	_label("Frente da escola", Vector3(-5, 0, 22.5))
 	_hint(Rect2(-20, 8, 40, 16), "A escola. A sala de planos fica lá dentro, no fundo do saguão. Use F na porta.")
+
+
+## Limites do pátio: a fachada e a estrutura em volta só eram desenho, sem colisão,
+## e o grupo atravessava a escola. Agora seguram o grupo dentro do pátio.
+func _build_limites_frente() -> void:
+	# Fachada: parede sólida atrás das janelas e da porta.
+	_invisible_wall(Vector3(0, 4.0, 7.0), Vector3(40.0, 8.0, 1.8))
+	# Laterais e frente (a mureta em corte já desenhada pela estrutura).
+	_invisible_wall(Vector3(-20.2, 1.5, 16.0), Vector3(0.4, 3.0, 16.0))
+	_invisible_wall(Vector3(20.2, 1.5, 16.0), Vector3(0.4, 3.0, 16.0))
+	_invisible_wall(Vector3(0, 1.5, 24.2), Vector3(40.8, 3.0, 0.4))
+
+
+func _invisible_wall(center: Vector3, size: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.collision_layer = Game.LAYER_WORLD
+	body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	shape.shape = box
+	body.add_child(shape)
+	body.position = center
+	add_child(body)
 
 
 ## Fachada de dois andares (só visual, na frente da estrutura do fundo).
