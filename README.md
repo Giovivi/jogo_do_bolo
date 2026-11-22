@@ -1,15 +1,15 @@
 # Projeto Mutantes · protótipo jogável
 
-Greybox da fase-piloto **Posto Vigia-01**, feito em **Godot 4 com GDScript**.
-Formas simples, câmera isométrica ortográfica fixa e mira pelo mouse.
-Arte final e cel shading ficam para depois.
+Greybox da **escola (hub)** e da fase-piloto **Posto Vigia-01**, feito em **Godot 4 com GDScript**.
+Formas simples, câmera de frente em perspectiva e mira pelo mouse.
+Materiais provisórios com cel shading e contorno, feitos por código. Arte final fica para depois.
 
 ## Como rodar
 
 1. Instale a **Godot 4.3** (ou mais nova, versão padrão, não a .NET): https://godotengine.org/download
 2. Abra a Godot, clique em **Importar** e escolha o arquivo `project.godot` desta pasta.
 3. Na primeira abertura a Godot indexa os scripts (alguns segundos).
-4. Aperte **F5** (ou o botão ▶) para jogar.
+4. Aperte **F5** (ou o botão ▶) para jogar. O jogo começa na frente da escola; a mesa do mapa, na sala dos oficiais, leva à fase.
 
 Não há assets externos: a fase, os heróis e os inimigos são montados por código.
 
@@ -26,7 +26,30 @@ Não há assets externos: a fase, os heróis e os inimigos são montados por có
 | Trocar de personagem | 1 a 4 ou Tab (recarga 3 s) |
 | Interagir / reanimar | F (segurar F perto de um aliado caído) |
 | Pausa | Esc |
-| Teste | F2 liga/desliga números de dano · F3 solta o Feixe na hora · F5 reinicia |
+| Teste | F3 solta o Feixe na hora · F5 reinicia |
+
+## A escola (hub)
+
+Escola abandonada numa região isolada, tomada pelo mato. O clima padrão é "Lanterna": noite azulada com poças de luz quente nas lâmpadas. Para comparar, rode com a variável de ambiente `LOOK=entardecer` ou `LOOK=musgo`. A frente e o interior são áreas separadas, ligadas pelas portas (F).
+
+| Área | O que tem |
+|---|---|
+| Frente da escola | Começo do jogo e volta das missões. Prédio de dois andares com marquise, pátio com mato, árvores e arbustos. Porta azul (F) para entrar |
+| Saguão central | Pé-direito duplo com mezanino nas laterais, escada, caixas de 1 m e 2 m e passarela quebrada (vão de 4 m) |
+| Sala dos oficiais (fundo do saguão) | Sala fechada com porta reforçada. Mesa com o mapa: F escolhe a missão (por enquanto, parte direto para o Posto Vigia-01) |
+| Laboratório (oeste) | Fechado por porta blindada. Com o Feixe, segure Q na porta para abrir. Bancada (F) |
+| Treino (leste) | Ginásio com entulho |
+| Quartos (mezanino) | Portas nas laterais: Fênix acesa, Feixe acende depois do resgate, as outras estão tapadas com tábuas |
+
+Quanto mais mutantes resgatados, menos mato aparece na frente.
+
+**Ciclo:** frente → sala dos oficiais → mesa do mapa → Posto Vigia-01 → tela de resultado → Enter volta para a frente da escola. Derrota também volta para a escola. O resgate do Feixe e o laboratório aberto ficam guardados enquanto o jogo estiver aberto (ainda não há save em disco).
+
+O hub fica em `scripts/hub/` (`escola.gd`, `hub_spot.gd`, `hub_door.gd`). A `Escola` herda o kit de peças da `PostoVigia` para não duplicar código; depois do merge do protótipo, vale mover esse kit para uma classe base comum.
+
+**Visual provisório:** `scripts/art/look.gd` cria os materiais (tijolo, piso, madeira, folhagem, brilho e contorno de HQ) com os shaders de `shaders/`. `scripts/art/fenix_model.gd` é um modelo provisório do Fênix feito de blocos, que só aparece nas capturas por enquanto. O jogo não mostra números flutuantes de dano nem de cura.
+
+O documento de design atualizado está em `docs/Projeto_Mutantes_GDD_v0.3.pdf`.
 
 ## O que dá para testar
 
@@ -83,7 +106,7 @@ Todos os valores ficam em `.tres` na pasta `data/`. Abra na Godot (clique duplo 
 | `data/fenix.tres` | vida, velocidade, dash e todo o kit do Fênix |
 | `data/feixe.tres` | vida, velocidade, dash e todo o kit do Feixe |
 | `data/soldado.tres`, `data/soldado_escudo.tres`, `data/drone.tres` | inimigos |
-| `data/regras.tres` | câmera e corte, troca, reanimação, IA, números de dano, tempo da cela, dano de queda |
+| `data/regras.tres` | câmera e corte, troca, reanimação, IA, tempo da cela, dano de queda |
 
 ## Estrutura
 
@@ -94,6 +117,10 @@ scripts/actors/             base de vida/dano e projéteis
 scripts/heroes/             herói base + IA, Fênix, Feixe
 scripts/enemies/            soldado e drone
 scripts/level/              greybox do Posto Vigia-01, baús, portas, interruptor, console
+scripts/hub/                escola (hub), pontos de interação e portas
+scripts/art/                materiais (Look) e modelo provisório do Fênix
+shaders/                    cel shading, tijolo, piso, contorno e papel do mapa
+docs/                       documento de design (PDF)
 scripts/ui/                 HUD
 data/                       valores ajustáveis (.tres)
 ```
@@ -103,3 +130,4 @@ data/                       valores ajustáveis (.tres)
 - A IA não usa NavigationAgent3D ainda: anda em linha reta quando vê o alvo e, se não vê, segue a trilha de pegadas do herói controlado. Se ficar mais de 20 m para trás por 2,5 s, ela se reagrupa atrás do líder.
 - Inimigos andam em linha reta até o alvo (as salas são abertas o bastante para o teste).
 - Sem loot, XP, roda de seleção, ataque de entrada e revisita da fase.
+- Sem save em disco: fechar o jogo zera o progresso da escola.

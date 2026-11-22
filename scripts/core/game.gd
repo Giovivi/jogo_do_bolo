@@ -23,6 +23,11 @@ var world_root: Node3D = null
 ## Retângulos (x0, z0, x1, z1) dos vãos, no plano do chão.
 var gaps: Array[Rect2] = []
 
+## "hub" = a escola; "fase" = Posto Vigia-01. Sobrevive ao recarregar a cena.
+var mode: String = "hub"
+## Progresso da campanha (sobrevive ao recarregar a cena, some ao fechar o jogo).
+var progress: Dictionary = {"feixe": false, "lab_open": false, "runs": 0}
+
 var chests_opened: int = 0
 var chests_total: int = 0
 var run_time: float = 0.0
@@ -80,7 +85,6 @@ func _setup_inputs() -> void:
 	_add_key("pause", KEY_ESCAPE)
 	_add_key("debug_restart", KEY_F5)
 	_add_key("debug_rescue", KEY_F3)
-	_add_key("debug_numbers", KEY_F2)
 	_add_key("confirm", KEY_ENTER)
 
 
@@ -185,8 +189,10 @@ func hitstop() -> void:
 	_hitstop_running = false
 
 
-func damage_number(pos: Vector3, text: String, color: Color = Color.WHITE) -> void:
-	if not rules.damage_numbers or world_root == null:
+## Marca flutuante curta (ex.: "!" do inimigo que avistou o grupo).
+## O jogo não mostra números de dano nem de cura: a vida reage só na HUD.
+func float_mark(pos: Vector3, text: String, color: Color = Color.WHITE) -> void:
+	if world_root == null:
 		return
 	var label := Label3D.new()
 	label.text = text

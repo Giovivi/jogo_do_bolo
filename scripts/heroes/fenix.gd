@@ -119,7 +119,6 @@ func blue_flame(aim: Vector3, use_mouse: bool, forced_target: Hero = null) -> bo
 	ability_lock = 0.2
 	target.heal(s.heal_amount)
 	Game.flash_ring(target.global_position, 1.2, Color(0.3, 0.6, 1.0, 0.7), 0.5)
-	Game.damage_number(target.global_position, "+%d" % int(s.heal_amount), Color(0.4, 0.8, 1.0))
 	if target != self:
 		Game.flash_line(global_position, target.global_position, 0.25, Color(0.3, 0.6, 1.0, 0.6), 0.3)
 	return true

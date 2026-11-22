@@ -40,7 +40,6 @@ extends Resource
 @export var ai_regroup_distance: float = 20.0
 
 @export_group("Feedback")
-@export var damage_numbers: bool = true
 @export var hitstop_seconds: float = 0.045
 
 @export_group("Fase")

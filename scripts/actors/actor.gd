@@ -128,8 +128,6 @@ func take_damage(amount: float, source: Node = null, info: Dictionary = {}) -> f
 	if dir.length() > 0.01:
 		knockback_velocity = dir.normalized() * kb * 2.0
 	_flash_time = 0.09
-	var num_color: Color = info.get("color", Color.WHITE)
-	Game.damage_number(global_position, str(int(round(amount))), num_color)
 	if info.get("heavy", false):
 		Game.hitstop()
 	damaged.emit(amount)

@@ -95,7 +95,7 @@ func setup(p: Party, l: PostoVigia) -> void:
 		_ability_labels.append(al)
 
 	# Ajuda (canto inferior esquerdo).
-	var help := _label("WASD mover · Mouse mirar · Clique básico · Q/E habilidades · R especial\nShift dash · 1-4/Tab trocar · F interagir/reanimar · Esc pausa\nF2 números de dano · F3 (teste) soltar o Feixe · F5 reiniciar", 13)
+	var help := _label("WASD mover · Mouse mirar · Clique básico · Q/E habilidades · R especial\nShift dash · 1-4/Tab trocar · F interagir/reanimar · Esc pausa\nF3 (teste) soltar o Feixe · F5 reiniciar", 13)
 	help.modulate = Color(1, 1, 1, 0.7)
 	_place(help, Control.PRESET_BOTTOM_LEFT, 16, -70, 600, -12)
 	root.add_child(help)
@@ -159,22 +159,19 @@ func show_message(text: String, seconds: float) -> void:
 func show_defeat() -> void:
 	_state = "defeat"
 	_overlay.visible = true
-	_overlay_label.text = "DERROTA\n\nTodo o grupo caiu.\nVoltando à base (a fase reinicia)..."
+	_overlay_label.text = "DERROTA\n\nTodo o grupo caiu.\nVoltando à escola..."
 
 
 func show_results() -> void:
 	_state = "results"
 	_overlay.visible = true
 	var t := int(Game.run_time)
-	_overlay_label.text = "POSTO VIGIA-01 CONCLUÍDO\n\nTempo: %d:%02d\nBaús encontrados: %d/%d\n\nEnter ou F5 para jogar de novo" % [t / 60, t % 60, Game.chests_opened, Game.chests_total]
+	_overlay_label.text = "POSTO VIGIA-01 CONCLUÍDO\n\nTempo: %d:%02d\nBaús encontrados: %d/%d\n\nEnter para voltar à escola" % [t / 60, t % 60, Game.chests_opened, Game.chests_total]
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("debug_restart"):
 		restart_requested.emit()
-	elif event.is_action_pressed("debug_numbers"):
-		Game.rules.damage_numbers = not Game.rules.damage_numbers
-		show_message("Números de dano: %s" % ("ligados" if Game.rules.damage_numbers else "desligados"), 1.5)
 	elif event.is_action_pressed("confirm") and _state == "results":
 		restart_requested.emit()
 	elif event.is_action_pressed("pause") and (_state == "playing" or _state == "paused"):
@@ -269,4 +266,7 @@ func _update_abilities() -> void:
 
 func _update_objective() -> void:
 	var t := int(Game.run_time)
-	_objective.text = "%s\nBaús %d/%d · %d:%02d" % [level.objective_text(), Game.chests_opened, Game.chests_total, t / 60, t % 60]
+	if Game.chests_total == 0:
+		_objective.text = level.objective_text()
+	else:
+		_objective.text = "%s\nBaús %d/%d · %d:%02d" % [level.objective_text(), Game.chests_opened, Game.chests_total, t / 60, t % 60]
