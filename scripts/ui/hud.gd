@@ -18,14 +18,14 @@ var _vignette: TextureRect
 # Herói ativo.
 var _main_portrait: HeroPortrait
 var _main_name: Label
-var _main_bar: SegmentBar
+var _main_bar: LifeBar
 var _main_special: SpecialBar
 var _main_tag: Label
 # Aliados.
 var _ally_rows: Array[Control] = []
 var _ally_keys: Array[Label] = []
 var _ally_portraits: Array[HeroPortrait] = []
-var _ally_bars: Array[SegmentBar] = []
+var _ally_bars: Array[LifeBar] = []
 var _ally_tags: Array[Label] = []
 # Poderes.
 var _ability_box: HBoxContainer
@@ -36,6 +36,8 @@ var _objective_sub: Label
 var _message: Label
 var _prompt: Label
 var _message_time: float = 0.0
+var _balloon: InteractBalloon
+var _blast_doors: Array[Door] = []
 # Telas por cima.
 var _pause_screen: Control
 var _pause_resume: Button
@@ -64,6 +66,12 @@ func setup(p: Party, l: PostoVigia) -> void:
 	_build_party()
 	_build_abilities()
 	_build_texts()
+	_balloon = InteractBalloon.new()
+	_balloon.visible = false
+	_root.add_child(_balloon)
+	for d in level.find_children("*", "Door", true, false):
+		if (d as Door).blast_door:
+			_blast_doors.append(d)
 	_pause_screen = _build_pause()
 	_root.add_child(_pause_screen)
 
@@ -105,7 +113,7 @@ func _build_party() -> void:
 	_main_tag.position = Vector2(200, 132)
 	_root.add_child(_main_tag)
 
-	_main_bar = SegmentBar.new()
+	_main_bar = LifeBar.new()
 	_main_bar.position = Vector2(200, 80)
 	_main_bar.size = Vector2(350, 30)
 	_root.add_child(_main_bar)
@@ -134,7 +142,7 @@ func _build_party() -> void:
 		row.add_child(por)
 		_ally_portraits.append(por)
 
-		var bar := SegmentBar.new()
+		var bar := LifeBar.new()
 		bar.position = Vector2(140, 34)
 		bar.size = Vector2(170, 16)
 		bar.skew = 0.4
@@ -463,7 +471,7 @@ func _react(h: Hero, por: HeroPortrait) -> void:
 		por.heal_glow = 1.0
 	_last_health[h] = h.health
 	var frac := h.health / maxf(h.max_health, 1.0)
-	por.low = h.in_party and not h.is_dead and frac <= SegmentBar.LOW_FRACTION
+	por.low = h.in_party and not h.is_dead and frac <= LifeBar.LOW_FRACTION
 	por.downed = h.is_dead
 	por.revive = h.revive_progress / maxf(Game.rules.revive_time, 0.01)
 
@@ -486,7 +494,7 @@ func _update_party() -> void:
 	_main_tag.text = "CAÍDO" if active.is_dead else ""
 	var frac := active.health / maxf(active.max_health, 1.0)
 	var target := 0.0
-	if not active.is_dead and frac <= SegmentBar.LOW_FRACTION:
+	if not active.is_dead and frac <= LifeBar.LOW_FRACTION:
 		target = 0.55 + 0.25 * sin(Time.get_ticks_msec() / 1000.0 * 8.0)
 	_vignette.modulate.a = move_toward(_vignette.modulate.a, target, 0.05)
 
@@ -515,7 +523,7 @@ func _update_party() -> void:
 			if not h.in_party:
 				tag.text = "PRESO NA CELA"
 			elif h.is_dead:
-				tag.text = "CAÍDO · SEGURE F"
+				tag.text = "CAÍDO"
 			else:
 				tag.text = h.stats.display_name.to_upper()
 		else:
@@ -569,15 +577,55 @@ func _update_abilities() -> void:
 	for i in range(shown, _icons.size()):
 		(_icons[i].get_parent() as Control).visible = false
 
+	_update_balloon(h)
 	var prompt := ""
-	if party.current_interactable != null:
-		prompt = "F: %s" % party.current_interactable.prompt
+	if party.switch_cooldown > 0.0:
+		prompt = "Troca: %.1f s" % party.switch_cooldown
+	_prompt.text = prompt
+
+
+## Verbo curto do objeto: o campo "verb" se existir, senão a primeira palavra do prompt.
+func _verb_of(it: Node) -> String:
+	var v = it.get("verb")
+	if v is String and v != "":
+		return v
+	var p: String = it.get("prompt") if it.get("prompt") is String else ""
+	return p.split(" ", false)[0] if p != "" else "Usar"
+
+
+## Balão em cima do objeto: aliado caído (segurar F para reviver), objeto que dá
+## para usar (F Abrir) ou porta que o herói atual não abre (só o cadeado).
+func _update_balloon(h: Hero) -> void:
+	var target: Node3D = null
+	var height := 1.3
+	_balloon.mode = "press"
 	for other in party.heroes:
 		if other.in_party and other.is_dead and Game.flat_distance(other.global_position, h.global_position) <= Game.rules.revive_radius:
-			prompt = "Segure F: reanimar %s" % other.stats.display_name
-	if party.switch_cooldown > 0.0:
-		prompt += ("   " if prompt != "" else "") + "Troca: %.1f s" % party.switch_cooldown
-	_prompt.text = prompt
+			target = other
+			height = 1.0
+			_balloon.mode = "hold"
+			_balloon.verb = "Reviver"
+			_balloon.progress = other.revive_progress / maxf(Game.rules.revive_time, 0.01)
+			break
+	if target == null and party.current_interactable != null:
+		target = party.current_interactable
+		_balloon.verb = _verb_of(target)
+		var need = target.get("required_hero")
+		if need is String and need != "" and need != h.stats.display_name:
+			_balloon.mode = "locked"
+	if target == null and h.stats.display_name != "Feixe":
+		for d in _blast_doors:
+			if is_instance_valid(d) and not d.is_open and Game.flat_distance(d.global_position, h.global_position) <= 2.2:
+				target = d
+				height = 2.6
+				_balloon.mode = "locked"
+				break
+	var cam := get_viewport().get_camera_3d()
+	if target == null or cam == null or cam.is_position_behind(target.global_position):
+		_balloon.visible = false
+		return
+	_balloon.visible = true
+	_balloon.position = cam.unproject_position(target.global_position + Vector3(0, height, 0))
 
 
 func _update_objective() -> void:
