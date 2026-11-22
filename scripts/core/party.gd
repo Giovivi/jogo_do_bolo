@@ -168,6 +168,14 @@ func _update_interactable() -> void:
 			continue
 		var d := Game.flat_distance(it.global_position, controlled_hero.global_position)
 		var dy := absf(it.global_position.y - controlled_hero.global_position.y)
-		if d <= it.interact_range and dy < 1.2 and d < best_d:
-			best_d = d
+		if d > it.interact_range or dy >= 1.2:
+			continue
+		# Com mais de um no alcance, vale o que está na direção do mouse
+		# (o herói olha para o cursor).
+		var to_it := it.global_position - controlled_hero.global_position
+		to_it.y = 0.0
+		var align := to_it.normalized().dot(controlled_hero.facing) if to_it.length() > 0.05 else 1.0
+		var score := d - align * 1.5
+		if score < best_d:
+			best_d = score
 			current_interactable = it
