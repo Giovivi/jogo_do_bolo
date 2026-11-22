@@ -4,6 +4,8 @@ extends CharacterBody3D
 
 signal damaged(amount: float)
 signal died
+## Reação a um golpe recebido (Impact.WEAK/STRONG/SPECIAL), para o HUD.
+signal hit_reacted(strength: int)
 
 
 var max_health: float = 100.0
@@ -168,29 +170,49 @@ func face_towards(point: Vector3) -> void:
 			visual.rotation.y = atan2(-facing.x, -facing.z)
 
 
-## info: "knockback" (float), "dir" (Vector3), "ability" (bool), "heavy" (bool), "color" (Color)
+## info: "strength" (Impact.WEAK/STRONG/SPECIAL), "push" (metros, opcional),
+## "dir" (Vector3), "ability" (bool), "color" (Color)
 func take_damage(amount: float, source: Node = null, info: Dictionary = {}) -> float:
 	if is_dead or invulnerable or amount <= 0.0:
 		return 0.0
 	var dealt := minf(amount, health)
 	health -= amount
-	var kb: float = info.get("knockback", 1.5)
+	var strength := Impact.strength_of(info)
 	var dir: Vector3 = info.get("dir", Vector3.ZERO)
 	if dir == Vector3.ZERO and source is Node3D:
 		dir = global_position - (source as Node3D).global_position
 	dir.y = 0.0
 	if dir.length() > 0.01:
-		knockback_velocity = dir.normalized() * kb * 2.0
-	_flash_time = 0.09
-	if info.get("heavy", false):
-		Game.hitstop()
+		dir = dir.normalized()
+	var killed := health <= 0.0
+	# Quem apanha pisca em vermelho.
+	_flash_time = 0.12
+	_react_to_hit(strength, dir, source, info, killed)
+	Game.impact_feedback(strength, source, self, killed)
 	damaged.emit(amount)
+	hit_reacted.emit(strength)
 	_on_damaged(amount, source)
-	if health <= 0.0:
+	if killed:
 		health = 0.0
 		_on_health_depleted(source)
 	_update_bar()
 	return dealt
+
+
+## Reação padrão: empurrão de acordo com a força (ou "push" em metros).
+func _react_to_hit(strength: int, dir: Vector3, _source: Node, info: Dictionary, _killed: bool) -> void:
+	var meters: float = info.get("push", Impact.PUSH_METERS[clampi(strength, 0, 2)])
+	push(dir, meters)
+
+
+## Empurra "meters" metros na direção dada, sem encurtar um empurrão maior
+## que já esteja em andamento (ex.: laser fraco logo depois do Pulso).
+func push(dir: Vector3, meters: float) -> void:
+	if dir.length() < 0.01 or meters <= 0.0:
+		return
+	var speed := Impact.push_speed(meters)
+	if speed > knockback_velocity.length():
+		knockback_velocity = dir * speed
 
 
 func heal(amount: float) -> void:
@@ -215,9 +237,9 @@ func tick_visual_feedback(delta: float) -> void:
 		return
 	if _flash_time > 0.0:
 		_flash_time -= delta
-		body_material.albedo_color = Color.WHITE
+		body_material.albedo_color = Color(1.0, 0.25, 0.2)
 		body_material.emission_enabled = true
-		body_material.emission = Color.WHITE
+		body_material.emission = Color(0.9, 0.1, 0.05)
 	else:
 		body_material.albedo_color = body_color
 		body_material.emission_enabled = false

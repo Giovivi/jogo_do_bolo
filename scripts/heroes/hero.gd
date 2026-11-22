@@ -42,6 +42,11 @@ var _air_dash_used: bool = false
 ## Pedido de pulo deste quadro (jogador ou IA).
 var _wants_jump: bool = false
 var _dash_velocity: Vector3 = Vector3.ZERO
+## Interrompido por ataque forte (seção 3.6). O dash cancela.
+var _stun_time: float = 0.0
+## Cores do efeito no ponto do acerto: golpe comum e golpe forte/especial.
+var impact_color: Color = Color(1, 1, 1, 0.9)
+var impact_color_strong: Color = Color(1, 1, 1, 0.9)
 
 var _select_ring: MeshInstance3D
 var _down_marker: Node3D
@@ -137,7 +142,16 @@ func _physics_process(delta: float) -> void:
 		_process_busy(delta)
 		return
 
-	if controlled:
+	if _stun_time > 0.0:
+		_stun_time -= delta
+		if controlled and Input.is_action_just_pressed("dash"):
+			_stun_time = 0.0
+			var axes := Game.screen_axes()
+			var input := Input.get_vector("move_left", "move_right", "move_down", "move_up")
+			try_dash(axes[1] * input.x + axes[0] * input.y)
+			if _dash_time_left > 0.0:
+				return
+	elif controlled:
 		move = _process_player(delta)
 	else:
 		move = _process_ai(delta)
@@ -199,7 +213,7 @@ func _fall_into_gap() -> void:
 	velocity = Vector3.ZERO
 	var was_inv := invulnerable
 	invulnerable = false
-	take_damage(Game.rules.fall_damage, null, {"knockback": 0.0, "color": Color(1, 0.4, 0.4)})
+	take_damage(Game.rules.fall_damage, null, {"push": 0.0, "color": Color(1, 0.4, 0.4)})
 	invulnerable = was_inv
 	if controlled:
 		Game.message("Caiu no vão! Pulo (Espaço) passa vãos de 2 m; os de 4 m só o Fênix, planando.", 3.0)
@@ -339,9 +353,47 @@ func deal_damage(target: Actor, amount: float, info: Dictionary = {}) -> float:
 		return 0.0
 	var dealt := target.take_damage(amount, self, info)
 	if dealt > 0.0:
+		_impact_spark(target, info)
 		add_special(dealt * stats.special_per_damage_dealt)
 		last_combat_time = _time
 	return dealt
+
+
+## Faísca curta no ponto do acerto, na cor do herói.
+func _impact_spark(target: Actor, info: Dictionary) -> void:
+	var strength := Impact.strength_of(info)
+	var at := target.global_position + Vector3(0, target.hover_offset + 0.9, 0)
+	var from := global_position + Vector3(0, 0.9, 0)
+	var toward := from - at
+	toward.y = 0.0
+	if toward.length() > 0.01:
+		at += toward.normalized() * target.body_radius
+	var m := SphereMesh.new()
+	var r := 0.22 + 0.12 * float(strength)
+	m.radius = r
+	m.height = r * 2.0
+	var c := impact_color if strength == Impact.WEAK else impact_color_strong
+	var orb := Game.flash_shape(m, Transform3D(Basis.IDENTITY, at), c, 0.14 + 0.04 * float(strength))
+	if orb != null:
+		orb.create_tween().tween_property(orb, "scale", Vector3.ONE * 1.8, 0.14)
+
+
+## Golpe comum dá um tranquinho; ataque forte interrompe (sem
+## invulnerabilidade depois do golpe).
+func _react_to_hit(strength: int, dir: Vector3, _source: Node, info: Dictionary, killed: bool) -> void:
+	if killed or dir.length() < 0.01:
+		return
+	if strength >= Impact.STRONG:
+		push(dir, info.get("push", Impact.PUSH_METERS[Impact.STRONG]))
+		_stun_time = Impact.HERO_STUN_STRONG
+		_on_interrupted()
+	else:
+		push(dir, info.get("push", Impact.HERO_JOLT_METERS))
+
+
+## O herói foi interrompido: cada um cancela o que estava fazendo.
+func _on_interrupted() -> void:
+	_on_attack_cancelled()
 
 
 func _on_damaged(amount: float, _source: Node) -> void:

@@ -16,6 +16,9 @@ func _fb() -> FeixeStats:
 
 func _ready() -> void:
 	super._ready()
+	# Faísca ciano no tiro e no laser, vermelha no pulso e na rajada.
+	impact_color = Color(0.5, 0.9, 1.0, 0.9)
+	impact_color_strong = Color(1.0, 0.3, 0.3, 0.9)
 	_laser_mesh = MeshInstance3D.new()
 	var m := BoxMesh.new()
 	m.size = Vector3(0.25, 0.25, 1.0)
@@ -82,7 +85,7 @@ func optic_shot() -> bool:
 	var s := _fb()
 	start_cooldown("basic", s.shot_interval)
 	var p := Projectile.spawn(Game.world_root, _muzzle(), facing, s.shot_speed, s.shot_damage, s.shot_range, true, self, Color(0.5, 0.85, 1.0), true)
-	p.info = {"knockback": 1.0, "ability": false}
+	p.info = {"strength": Impact.WEAK, "ability": false}
 	return true
 
 
@@ -152,7 +155,7 @@ func _tick_laser(delta: float) -> void:
 			var enemy := e as Actor
 			if Game.flat_distance_to_segment(enemy.global_position, from, to) <= s.laser_width * 0.5 + enemy.body_radius \
 					and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
-				deal_damage(enemy, dmg, {"knockback": 0.3, "dir": facing, "ability": true, "color": Color(1, 0.4, 0.4)})
+				deal_damage(enemy, dmg, {"strength": Impact.WEAK, "push": 0.0, "dir": facing, "ability": true, "color": Color(1, 0.4, 0.4)})
 
 
 # ---------------------------------------------------------------- E: Pulso de Repulsão
@@ -170,7 +173,7 @@ func repulsion_pulse() -> bool:
 				and Game.vertical_ok(global_position.y, enemy, Game.REACH_MELEE):
 			var dir := enemy.global_position - global_position
 			dir.y = 0.0
-			deal_damage(enemy, s.pulse_damage, {"knockback": s.pulse_knockback, "dir": dir, "ability": true, "heavy": true})
+			deal_damage(enemy, s.pulse_damage, {"strength": Impact.STRONG, "push": s.pulse_push_meters, "dir": dir, "ability": true})
 	return true
 
 
@@ -181,13 +184,25 @@ func use_special(_aim: Vector3) -> bool:
 	var from := global_position
 	var to := from + facing * s.blast_length
 	Game.flash_line(from, to, s.blast_width, Color(1.0, 0.25, 0.25, 0.85), 0.45)
-	Game.hitstop()
+	# Invulnerável por um instante enquanto dispara.
+	invulnerable = true
+	get_tree().create_timer(BLAST_INVULNERABLE).timeout.connect(_end_blast_invulnerability)
 	for e in Game.living_enemies():
 		var enemy := e as Actor
 		if Game.flat_distance_to_segment(enemy.global_position, from, to) <= s.blast_width * 0.5 + enemy.body_radius \
 				and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
-			deal_damage(enemy, s.blast_damage, {"knockback": 6.0, "dir": facing, "ability": true, "heavy": true, "color": Color(1, 0.3, 0.3)})
+			deal_damage(enemy, s.blast_damage, {"strength": Impact.SPECIAL, "dir": facing, "ability": true, "color": Color(1, 0.3, 0.3)})
 	return true
+
+
+func _end_blast_invulnerability() -> void:
+	if _dash_time_left <= 0.0 and not busy:
+		invulnerable = false
+
+
+func _on_interrupted() -> void:
+	stop_laser()
+	super._on_interrupted()
 
 
 # ---------------------------------------------------------------- IA

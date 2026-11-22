@@ -40,6 +40,8 @@ extends Resource
 @export var ai_regroup_distance: float = 20.0
 
 @export_group("Feedback")
+## Desliga o tremor de câmera (opção de acessibilidade).
+@export var screen_shake: bool = true
 @export var hitstop_seconds: float = 0.045
 
 @export_group("Fase")

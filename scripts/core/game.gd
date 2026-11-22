@@ -191,14 +191,40 @@ func gap_ahead(pos: Vector3, dir: Vector3, ahead: float = 1.4) -> bool:
 
 # ---------------------------------------------------------------- feedback
 
-func hitstop() -> void:
-	if _hitstop_running or rules.hitstop_seconds <= 0.0:
+## Pausa no acerto. Sem argumento usa a duração padrão das regras.
+func hitstop(seconds: float = -1.0) -> void:
+	var t := rules.hitstop_seconds if seconds < 0.0 else seconds
+	if _hitstop_running or t <= 0.0:
 		return
 	_hitstop_running = true
 	Engine.time_scale = 0.05
-	await get_tree().create_timer(rules.hitstop_seconds, true, false, true).timeout
+	await get_tree().create_timer(t, true, false, true).timeout
 	Engine.time_scale = 1.0
 	_hitstop_running = false
+
+
+## Tremor de câmera (respeita a opção screen_shake das regras).
+func shake(amount: float, duration: float) -> void:
+	if not rules.screen_shake or amount <= 0.0 or party == null or party.camera_rig == null:
+		return
+	party.camera_rig.add_shake(amount, duration)
+
+
+## Pausa e tremor de um acerto (seção 3.6). Só o que o herói controlado
+## faz, ou sofre, mexe com o tempo e a câmera; a IA nunca.
+func impact_feedback(strength: int, source: Node, target: Node, killed: bool) -> void:
+	var s := clampi(strength, 0, 2)
+	if Impact.from_player(source):
+		var frames: int = Impact.HITSTOP_FRAMES[s]
+		if killed:
+			frames = maxi(frames, Impact.KILL_HITSTOP_FRAMES)
+		if frames > 0:
+			hitstop(float(frames) / 60.0)
+		var sh: Array = Impact.SHAKE[s]
+		shake(sh[0], sh[1])
+	elif target is Hero and (target as Hero).controlled and s >= Impact.STRONG:
+		var light: Array = Impact.SHAKE[Impact.STRONG]
+		shake(light[0], light[1])
 
 
 ## Marca flutuante curta (ex.: "!" do inimigo que avistou o grupo).
@@ -255,7 +281,7 @@ func flash_ring(center: Vector3, radius: float, color: Color, duration: float = 
 	m.top_radius = radius
 	m.bottom_radius = radius
 	m.height = 0.1
-	flash_shape(m, Transform3D(Basis.IDENTITY, Vector3(center.x, 0.1, center.z)), color, duration)
+	flash_shape(m, Transform3D(Basis.IDENTITY, Vector3(center.x, center.y + 0.1, center.z)), color, duration)
 
 
 ## Cone/arco achatado no chão, apontando para "dir".

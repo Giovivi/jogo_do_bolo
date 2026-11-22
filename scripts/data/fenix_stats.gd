@@ -8,7 +8,6 @@ extends HeroStats
 @export var combo_reset_time: float = 0.8
 @export var claw_range: float = 2.3
 @export var claw_arc_degrees: float = 110.0
-@export var finisher_knockback: float = 7.0
 
 @export_group("Asas de Fogo (Q)")
 @export var wings_damage: float = 25.0

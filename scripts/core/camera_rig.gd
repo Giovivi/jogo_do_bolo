@@ -10,6 +10,9 @@ var target: Node3D
 var _focus: Vector3 = Vector3.ZERO
 var _slide_from: Vector3 = Vector3.ZERO
 var _slide_t: float = 1.0
+var _shake_amount: float = 0.0
+var _shake_time: float = 0.0
+var _shake_total: float = 0.0
 
 
 func _ready() -> void:
@@ -44,6 +47,7 @@ func follow(new_target: Node3D, slide: bool) -> void:
 
 
 func _process(delta: float) -> void:
+	_shake_time = maxf(0.0, _shake_time - delta)
 	if target == null or not is_instance_valid(target):
 		return
 	var goal := target.global_position
@@ -63,5 +67,17 @@ func _process(delta: float) -> void:
 	_place()
 
 
+func add_shake(amount: float, duration: float) -> void:
+	if amount >= _shake_amount * (_shake_time / maxf(_shake_total, 0.001)):
+		_shake_amount = amount
+		_shake_time = duration
+		_shake_total = duration
+
+
 func _place() -> void:
-	camera.global_position = _focus + camera.global_transform.basis.z * distance
+	var offset := Vector3.ZERO
+	if _shake_time > 0.0:
+		var k := _shake_time / maxf(_shake_total, 0.001)
+		var b := camera.global_transform.basis
+		offset = (b.x * randf_range(-1.0, 1.0) + b.y * randf_range(-1.0, 1.0)) * _shake_amount * k
+	camera.global_position = _focus + camera.global_transform.basis.z * distance + offset

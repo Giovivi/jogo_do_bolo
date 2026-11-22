@@ -12,6 +12,13 @@ var _glide_dir: Vector3 = Vector3.ZERO
 var _glide_travelled: float = 0.0
 
 
+func _ready() -> void:
+	super._ready()
+	# Chama dourada no golpe comum, azul no forte.
+	impact_color = Color(1.0, 0.8, 0.3, 0.9)
+	impact_color_strong = Color(0.35, 0.65, 1.0, 0.9)
+
+
 func _fx() -> FenixStats:
 	return stats as FenixStats
 
@@ -68,9 +75,8 @@ func claw_attack() -> bool:
 			continue
 		if Game.in_cone(global_position, facing, enemy.global_position, s.claw_range, s.claw_arc_degrees, enemy.body_radius):
 			var info := {
-				"knockback": s.finisher_knockback if finisher else 1.5,
+				"strength": Impact.STRONG if finisher else Impact.WEAK,
 				"dir": facing,
-				"heavy": finisher,
 				"ability": false,
 			}
 			deal_damage(enemy, dmg, info)
@@ -95,7 +101,7 @@ func fire_wings() -> bool:
 		var enemy := e as Actor
 		if Game.in_cone(global_position, facing, enemy.global_position, s.wings_range, s.wings_arc_degrees, enemy.body_radius) \
 				and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
-			deal_damage(enemy, s.wings_damage, {"knockback": 3.0, "dir": facing, "ability": true, "heavy": true, "color": Color(1, 0.6, 0.2)})
+			deal_damage(enemy, s.wings_damage, {"strength": Impact.STRONG, "dir": facing, "ability": true, "color": Color(1, 0.6, 0.2)})
 	return true
 
 
@@ -169,12 +175,11 @@ func _dive_land() -> void:
 	invulnerable = false
 	velocity = Vector3.ZERO
 	Game.flash_ring(global_position, s.dive_radius, Color(1.0, 0.4, 0.1, 0.8), 0.5)
-	Game.hitstop()
 	for e in Game.living_enemies():
 		var enemy := e as Actor
 		if Game.flat_distance(enemy.global_position, global_position) <= s.dive_radius + enemy.body_radius \
 				and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
-			deal_damage(enemy, s.dive_damage, {"knockback": 8.0, "ability": true, "color": Color(1, 0.5, 0.1)})
+			deal_damage(enemy, s.dive_damage, {"strength": Impact.SPECIAL, "ability": true, "color": Color(1, 0.5, 0.1)})
 
 
 # ---------------------------------------------------------------- passivas
@@ -187,12 +192,11 @@ func _on_health_depleted(_source: Node) -> void:
 		_update_bar()
 		Game.flash_ring(global_position, s.rebirth_radius, Color(1.0, 0.6, 0.1, 0.85), 0.6)
 		Game.message("Renascer! O Fênix volta com metade da vida (1x por fase).", 2.5)
-		Game.hitstop()
 		for e in Game.living_enemies():
 			var enemy := e as Actor
 			if Game.flat_distance(enemy.global_position, global_position) <= s.rebirth_radius + enemy.body_radius \
 					and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
-				deal_damage(enemy, s.rebirth_damage, {"knockback": 7.0, "ability": true, "color": Color(1, 0.5, 0.1)})
+				deal_damage(enemy, s.rebirth_damage, {"strength": Impact.SPECIAL, "ability": true, "color": Color(1, 0.5, 0.1)})
 		return
 	go_down()
 

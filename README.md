@@ -54,7 +54,7 @@ O documento de design atualizado está em `docs/Projeto_Mutantes_GDD_v0.3.pdf`.
 ## O que dá para testar
 
 **Fênix** (começa sozinho)
-- Clique: combo de garras 10/10/18, o 3º golpe empurra e dá pausa de impacto. Garras não alcançam drones.
+- Clique: combo de garras 10/10/18, o 3º golpe é forte (empurra, interrompe e dá pausa de impacto). Garras não alcançam drones.
 - Q Asas de Fogo: cone de 25 de dano, acerta drones (recarga 6 s).
 - E Chama Azul: cura 30 no aliado mais perto do cursor, ou em si mesmo (recarga 12 s).
 - R Mergulho da Ave: voa até o cursor (até 10 m) e explode em área, 80 de dano.
@@ -76,6 +76,26 @@ O documento de design atualizado está em `docs/Projeto_Mutantes_GDD_v0.3.pdf`.
 - Soldado (40 de vida): anda até o herói mais perto e atira a média distância. A variante com escudo só toma dano por trás ou de habilidades.
 - Drone (25 de vida): voa, fica a 8–10 m e atira.
 - Os tiros inimigos têm um pequeno aviso (o inimigo "incha") e podem ser desviados com o dash, que deixa invulnerável.
+
+## Impacto dos golpes
+
+Cada golpe tem uma força (seção 3.6 da especificação de mecânicas). A força define a pausa no acerto, o empurrão e o tremor de câmera:
+
+| Força | Golpes | Pausa | Inimigo | Câmera |
+|---|---|---|---|---|
+| Fraco | garras 1 e 2, tiro óptico, laser | nenhuma | ~20 cm (laser não empurra) | parada |
+| Forte | 3º golpe das garras, Asas de Fogo, Pulso | ~3 quadros | ~0,5 m e interrompido ~0,4 s (perde o tiro que estava preparando) | tremor leve |
+| Especial | Mergulho, Renascer, Rajada Máxima | ~6 quadros | derrubado ~1 s | tremor forte |
+| Golpe que mata | qualquer um | pelo menos ~4 quadros | explosão curta | conforme a força |
+
+- Só os golpes do herói que você controla pausam o jogo e tremem a câmera. Os da IA não.
+- O Pulso empurra mais (2,5 m, `pulse_push_meters` em `data/feixe.tres`), porque essa é a função dele.
+- O drone não cai: é jogado para trás e balança.
+- O escudo frontal só recua o soldado, sem interromper.
+- Quem apanha pisca em vermelho. No ponto do acerto aparece uma chama dourada (comum) ou azul (forte) do Fênix, e uma faísca ciano ou vermelha do Feixe.
+- O herói: golpe comum só dá um tranquinho. Ataque forte interrompe por ~0,3 s, e o dash cancela a interrupção. Não há invulnerabilidade depois de apanhar.
+- A Rajada Máxima deixa o Feixe invulnerável por ~0,35 s.
+- O tremor de câmera pode ser desligado em `data/regras.tres` (`screen_shake`). Os números de cada força ficam em `scripts/combat/impact.gd`.
 
 ## Roteiro da fase (10 a 15 min)
 
@@ -131,3 +151,4 @@ data/                       valores ajustáveis (.tres)
 - Inimigos andam em linha reta até o alvo (as salas são abertas o bastante para o teste).
 - Sem loot, XP, roda de seleção, ataque de entrada e revisita da fase.
 - Sem save em disco: fechar o jogo zera o progresso da escola.
+- Nenhum inimigo da fase piloto tem ataque forte ainda, então a interrupção do herói (0,3 s, cancelável com dash) só vai aparecer quando um inimigo ganhar esse golpe.
