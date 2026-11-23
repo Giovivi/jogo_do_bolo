@@ -8,7 +8,6 @@ extends HeroStats
 @export var combo_reset_time: float = 0.8
 @export var claw_range: float = 2.3
 @export var claw_arc_degrees: float = 110.0
-@export var finisher_knockback: float = 7.0
 
 @export_group("Asas de Fogo (Q)")
 @export var wings_damage: float = 25.0
@@ -34,6 +33,8 @@ extends HeroStats
 @export var regen_delay: float = 4.0
 @export var regen_per_second: float = 3.0
 
-@export_group("Planar (exploração)")
-@export var glide_max_distance: float = 5.0
-@export var glide_speed: float = 7.0
+@export_group("Planar (exploração): segurar Espaço no ar")
+## Pulo + planar cobre cerca de 5 m: passa o vão de 4 m, não o de 6 m.
+@export var glide_max_distance: float = 4.0
+@export var glide_speed: float = 6.5
+@export var glide_fall_speed: float = 1.2

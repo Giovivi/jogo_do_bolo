@@ -12,6 +12,8 @@ var source: Node = null
 var hits_switches: bool = false
 var radius: float = 0.25
 var info: Dictionary = {}
+## Altura de referência de quem atirou (pés), para o alcance vertical.
+var ref_y: float = 0.0
 
 var _travelled: float = 0.0
 
@@ -39,6 +41,7 @@ static func spawn(parent: Node, pos: Vector3, dir: Vector3, p_speed: float, p_da
 	p.add_child(mi)
 	parent.add_child(p)
 	p.global_position = pos
+	p.ref_y = pos.y - 1.2
 	return p
 
 
@@ -79,6 +82,8 @@ func _check_targets(from: Vector3, to: Vector3) -> bool:
 	for t in targets:
 		var a := t as Actor
 		if a == null or a.is_dead:
+			continue
+		if not Game.vertical_ok(ref_y, a, Game.REACH_RANGED):
 			continue
 		if Game.flat_distance_to_segment(a.global_position, from, to) <= a.body_radius + radius:
 			if a.invulnerable:

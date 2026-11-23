@@ -7,6 +7,13 @@ extends Resource
 @export var max_health: float = 100.0
 @export var move_speed: float = 6.0
 
+@export_group("Pulo")
+## Altura máxima do pulo (m). 1,3 m sobe um degrau de 1 m.
+@export var jump_height: float = 1.3
+## Velocidade horizontal no ar (fração da normal). Com 0,8 o pulo
+## com corrida cobre cerca de 2,4 m: passa vão de 2 m, não o de 4 m.
+@export var air_speed_multiplier: float = 0.8
+
 @export_group("Dash")
 @export var dash_distance: float = 4.0
 @export var dash_time: float = 0.15

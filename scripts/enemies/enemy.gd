@@ -17,6 +17,11 @@ var _strafe_dir: float = 1.0
 var _strafe_timer: float = 0.0
 var _target: Hero = null
 var _shield: MeshInstance3D
+## Reação a golpes (seção 3.6): forte interrompe, especial derruba.
+var _stun: float = 0.0
+var _knockdown: float = 0.0
+var _sway: float = 0.0
+var _sway_time: float = 0.0
 
 
 func _ready() -> void:
@@ -29,6 +34,7 @@ func _ready() -> void:
 	build_body(stats.color, h, stats.body_radius, Color(0.95, 0.9, 0.2))
 	set_bar_color(Color(0.95, 0.3, 0.3))
 	if flying:
+		hover_offset = stats.hover_height
 		collision_mask = Game.MASK_DRONE
 		for c in get_children():
 			if c is Node3D:
@@ -55,6 +61,9 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	tick_visual_feedback(delta)
 	if is_dead:
+		return
+	if _tick_hit_reaction(delta):
+		_apply_motion(Vector3.ZERO, delta)
 		return
 	_target = _pick_target()
 	if not active:
@@ -99,6 +108,26 @@ func _physics_process(delta: float) -> void:
 	_apply_motion(move, delta)
 
 
+## Atualiza interrupção, queda e balanço. Devolve true enquanto o inimigo
+## não pode agir.
+func _tick_hit_reaction(delta: float) -> bool:
+	if _sway_time > 0.0:
+		_sway_time = maxf(_sway_time - delta, 0.0)
+		visual.rotation.z = sin(_sway_time * 28.0) * _sway * (_sway_time / 0.6)
+	elif flying:
+		visual.rotation.z = 0.0
+	if _knockdown > 0.0:
+		_knockdown -= delta
+		if _knockdown <= 0.0:
+			var tw := create_tween()
+			tw.tween_property(visual, "rotation:x", 0.0, 0.18)
+		return true
+	if _stun > 0.0:
+		_stun -= delta
+		return true
+	return false
+
+
 func _apply_motion(move: Vector3, delta: float) -> void:
 	var kb := apply_knockback(delta)
 	var v := move * stats.move_speed + kb
@@ -139,7 +168,7 @@ func _fire() -> void:
 	var muzzle := global_position + facing * 0.6 + Vector3(0, y, 0)
 	var aim := _target.global_position - global_position
 	var p := Projectile.spawn(Game.world_root, muzzle, aim, stats.projectile_speed, stats.projectile_damage, stats.fire_range + 3.0, false, self, Color(1.0, 0.35, 0.2))
-	p.info = {"knockback": 1.0}
+	p.info = {"strength": Impact.WEAK}
 
 
 func take_damage(amount: float, source: Node = null, info: Dictionary = {}) -> float:
@@ -155,11 +184,50 @@ func take_damage(amount: float, source: Node = null, info: Dictionary = {}) -> f
 	return super.take_damage(amount, source, info)
 
 
+func _react_to_hit(strength: int, dir: Vector3, source: Node, info: Dictionary, killed: bool) -> void:
+	super._react_to_hit(strength, dir, source, info, killed)
+	if killed:
+		return
+	if flying:
+		# Drone não cai: é jogado para trás e balança.
+		_sway = 0.35 if strength >= Impact.STRONG else 0.15
+		_sway_time = 0.6
+		if strength >= Impact.STRONG:
+			_cancel_windup()
+			_stun = maxf(_stun, Impact.STUN_STRONG)
+		return
+	if strength >= Impact.SPECIAL:
+		_cancel_windup()
+		_knockdown = Impact.KNOCKDOWN_SPECIAL
+		_stun = 0.0
+		var tw := create_tween()
+		tw.tween_property(visual, "rotation:x", deg_to_rad(-80.0), 0.12)
+	elif strength >= Impact.STRONG:
+		_cancel_windup()
+		_stun = maxf(_stun, Impact.STUN_STRONG)
+
+
+func _cancel_windup() -> void:
+	if _windup > 0.0:
+		_windup = 0.0
+		body_mesh.scale = Vector3.ONE if not flying else Vector3(1.4, 0.5, 1.4)
+		_fire_timer = maxf(_fire_timer, 0.6)
+
+
 func _on_health_depleted(_source: Node) -> void:
 	is_dead = true
 	collision_layer = 0
 	collision_mask = 0
 	died.emit()
+	# Explosão curta ao morrer.
+	var c := global_position + Vector3(0, hover_offset, 0)
+	Game.flash_ring(c, 1.4, Color(1.0, 0.6, 0.2, 0.8), 0.3)
+	var burst := SphereMesh.new()
+	burst.radius = 0.9
+	burst.height = 1.8
+	var orb := Game.flash_shape(burst, Transform3D(Basis.IDENTITY, c + Vector3(0, 0.8, 0)), Color(1.0, 0.85, 0.4, 0.85), 0.22)
+	if orb != null:
+		orb.create_tween().tween_property(orb, "scale", Vector3.ONE * 1.8, 0.22)
 	var tw := create_tween()
 	tw.tween_property(visual, "scale", Vector3(1.3, 0.05, 1.3), 0.25)
 	tw.tween_callback(queue_free)

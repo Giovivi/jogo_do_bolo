@@ -12,6 +12,21 @@ extends Resource
 @export var camera_fov: float = 35.0
 ## Altura (em metros) do quadro visível.
 @export var camera_view_height: float = 15.0
+## Altura do herói na tela, contada de baixo (0,5 = centro).
+@export_range(0.1, 0.5) var camera_hero_screen_fraction: float = 0.30
+## "Câmera segue a mira": até quantos metros o foco anda na direção do
+## cursor (0 desliga). O menu de configurações muda este valor.
+@export_range(0.0, 3.0) var camera_aim_follow: float = 1.5
+## Distância da câmera por nível de zona (aberto é 100%).
+@export var camera_zoom_medium: float = 0.8
+@export var camera_zoom_closed: float = 0.65
+## Transição de zoom entre salas, em segundos.
+@export var camera_zone_transition: float = 0.8
+## Quanto o herói precisa entrar na outra sala para o zoom mudar (m).
+@export var camera_zone_hysteresis: float = 1.0
+## Paredes na frente do herói ficam transparentes. Desligado: a decisão
+## da seção 3.7 é que nada fica transparente (o corte baixo continua).
+@export var wall_fade: bool = false
 
 @export_group("Cenário em corte (diorama)")
 ## Paredes e estrutura do lado da câmera ficam cortadas nesta altura.
@@ -40,6 +55,8 @@ extends Resource
 @export var ai_regroup_distance: float = 20.0
 
 @export_group("Feedback")
+## Desliga o tremor de câmera (opção de acessibilidade).
+@export var screen_shake: bool = true
 @export var hitstop_seconds: float = 0.045
 
 @export_group("Fase")

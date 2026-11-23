@@ -8,7 +8,10 @@ signal revived(hero: Hero)
 
 enum AIState { FOLLOW, ATTACK, RETURN, REVIVE }
 
-const GRAVITY := 25.0
+const GRAVITY := 40.0
+const COYOTE_TIME := 0.12
+## Abaixo desta altura o herói caiu num vão.
+const FALL_LIMIT_Y := -2.5
 
 @export var stats: HeroStats
 
@@ -34,7 +37,16 @@ var _ai_waypoint: Vector3 = Vector3.ZERO
 var _ai_far_time: float = 0.0
 
 var _dash_time_left: float = 0.0
+var _coyote: float = 0.0
+var _air_dash_used: bool = false
+## Pedido de pulo deste quadro (jogador ou IA).
+var _wants_jump: bool = false
 var _dash_velocity: Vector3 = Vector3.ZERO
+## Interrompido por ataque forte (seção 3.6). O dash cancela.
+var _stun_time: float = 0.0
+## Cores do efeito no ponto do acerto: golpe comum e golpe forte/especial.
+var impact_color: Color = Color(1, 1, 1, 0.9)
+var impact_color_strong: Color = Color(1, 1, 1, 0.9)
 
 var _select_ring: MeshInstance3D
 var _down_marker: Node3D
@@ -130,25 +142,64 @@ func _physics_process(delta: float) -> void:
 		_process_busy(delta)
 		return
 
-	if controlled:
+	if _stun_time > 0.0:
+		_stun_time -= delta
+		if controlled and Input.is_action_just_pressed("dash"):
+			_stun_time = 0.0
+			var axes := Game.screen_axes()
+			var input := Input.get_vector("move_left", "move_right", "move_down", "move_up")
+			try_dash(axes[1] * input.x + axes[0] * input.y)
+			if _dash_time_left > 0.0:
+				return
+	elif controlled:
 		move = _process_player(delta)
 	else:
 		move = _process_ai(delta)
 
 	var kb := apply_knockback(delta)
-	var v := move * stats.move_speed * move_multiplier + kb
-	v.y = velocity.y - GRAVITY * delta
-	if is_on_floor():
-		v.y = -0.5
+	var on_floor := is_on_floor()
+	var speed := stats.move_speed * move_multiplier
+	if not on_floor:
+		speed *= stats.air_speed_multiplier
+	var v := move * speed + kb
+	var vy := velocity.y
+	if on_floor:
+		_coyote = COYOTE_TIME
+		_air_dash_used = false
+		if vy < 0.0:
+			vy = 0.0
+		_on_grounded()
+	else:
+		_coyote -= delta
+		vy -= GRAVITY * delta
+	if _wants_jump and _coyote > 0.0:
+		vy = sqrt(2.0 * GRAVITY * stats.jump_height)
+		_coyote = 0.0
+	_wants_jump = false
+	v.y = vy
+	v = _air_motion(v, move, on_floor, delta)
 	velocity = v
 	move_and_slide()
 	_after_move()
 
 
+## Ganchos para o Fênix planar.
+func _air_motion(v: Vector3, _move: Vector3, _on_floor: bool, _delta: float) -> Vector3:
+	return v
+
+
+func _on_grounded() -> void:
+	pass
+
+
+func jump() -> void:
+	_wants_jump = true
+
+
 func _after_move() -> void:
-	if Game.is_over_gap(global_position):
+	if global_position.y < FALL_LIMIT_Y:
 		_fall_into_gap()
-	elif not Game.gap_ahead(global_position, Vector3.FORWARD, 0.6) \
+	elif is_on_floor() and not Game.gap_ahead(global_position, Vector3.FORWARD, 0.6) \
 			and not Game.gap_ahead(global_position, Vector3.BACK, 0.6) \
 			and not Game.gap_ahead(global_position, Vector3.LEFT, 0.6) \
 			and not Game.gap_ahead(global_position, Vector3.RIGHT, 0.6):
@@ -162,10 +213,10 @@ func _fall_into_gap() -> void:
 	velocity = Vector3.ZERO
 	var was_inv := invulnerable
 	invulnerable = false
-	take_damage(Game.rules.fall_damage, null, {"knockback": 0.0, "color": Color(1, 0.4, 0.4)})
+	take_damage(Game.rules.fall_damage, null, {"push": 0.0, "color": Color(1, 0.4, 0.4)})
 	invulnerable = was_inv
 	if controlled:
-		Game.message("Caiu no vão! Só o Fênix plana sobre vãos curtos (segure Shift na beirada).", 3.0)
+		Game.message("Caiu no vão! Pulo (Espaço) passa vãos de 2 m; os de 4 m só o Fênix, planando.", 3.0)
 
 
 ## Usado por ações que tomam o movimento (o Fênix usa para planar).
@@ -210,8 +261,11 @@ func _process_player(_delta: float) -> Vector3:
 	var move := axes[1] * input.x + axes[0] * input.y
 	if move.length() > 1.0:
 		move = move.normalized()
-	var aim := Game.mouse_ground_point(0.0)
+	var aim := Game.mouse_ground_point(global_position.y)
 	face_towards(aim)
+
+	if Input.is_action_just_pressed("jump"):
+		jump()
 
 	if Input.is_action_just_pressed("dash"):
 		try_dash(move)
@@ -245,13 +299,31 @@ func use_special(_aim: Vector3) -> bool:
 func try_dash(move: Vector3) -> void:
 	if ability_lock > 0.0 or not cooldown_ready("dash"):
 		return
+	var airborne := not is_on_floor()
+	if airborne and _air_dash_used:
+		return
+	if Game.is_over_gap(global_position):
+		return # sem dash em cima de um vão
 	var dir := move
 	if dir.length() < 0.1:
 		dir = facing
 	dir.y = 0.0
 	dir = dir.normalized()
+	# O dash para na beirada: não atravessa vãos (isso é do planar).
+	var dist := stats.dash_distance
+	var step := 0.25
+	var d := step
+	while d <= stats.dash_distance:
+		if Game.is_over_gap(global_position + dir * d):
+			dist = maxf(0.0, d - 0.5)
+			break
+		d += step
+	if dist < 0.3:
+		return
+	if airborne:
+		_air_dash_used = true
 	start_cooldown("dash", stats.dash_cooldown)
-	_dash_time_left = stats.dash_time
+	_dash_time_left = stats.dash_time * dist / stats.dash_distance
 	_dash_velocity = dir * (stats.dash_distance / stats.dash_time)
 	invulnerable = true
 	_on_attack_cancelled()
@@ -281,9 +353,47 @@ func deal_damage(target: Actor, amount: float, info: Dictionary = {}) -> float:
 		return 0.0
 	var dealt := target.take_damage(amount, self, info)
 	if dealt > 0.0:
+		_impact_spark(target, info)
 		add_special(dealt * stats.special_per_damage_dealt)
 		last_combat_time = _time
 	return dealt
+
+
+## Faísca curta no ponto do acerto, na cor do herói.
+func _impact_spark(target: Actor, info: Dictionary) -> void:
+	var strength := Impact.strength_of(info)
+	var at := target.global_position + Vector3(0, target.hover_offset + 0.9, 0)
+	var from := global_position + Vector3(0, 0.9, 0)
+	var toward := from - at
+	toward.y = 0.0
+	if toward.length() > 0.01:
+		at += toward.normalized() * target.body_radius
+	var m := SphereMesh.new()
+	var r := 0.22 + 0.12 * float(strength)
+	m.radius = r
+	m.height = r * 2.0
+	var c := impact_color if strength == Impact.WEAK else impact_color_strong
+	var orb := Game.flash_shape(m, Transform3D(Basis.IDENTITY, at), c, 0.14 + 0.04 * float(strength))
+	if orb != null:
+		orb.create_tween().tween_property(orb, "scale", Vector3.ONE * 1.8, 0.14)
+
+
+## Golpe comum dá um tranquinho; ataque forte interrompe (sem
+## invulnerabilidade depois do golpe).
+func _react_to_hit(strength: int, dir: Vector3, _source: Node, info: Dictionary, killed: bool) -> void:
+	if killed or dir.length() < 0.01:
+		return
+	if strength >= Impact.STRONG:
+		push(dir, info.get("push", Impact.PUSH_METERS[Impact.STRONG]))
+		_stun_time = Impact.HERO_STUN_STRONG
+		_on_interrupted()
+	else:
+		push(dir, info.get("push", Impact.HERO_JOLT_METERS))
+
+
+## O herói foi interrompido: cada um cancela o que estava fazendo.
+func _on_interrupted() -> void:
+	_on_attack_cancelled()
 
 
 func _on_damaged(amount: float, _source: Node) -> void:
@@ -352,6 +462,30 @@ func _process_downed(delta: float) -> void:
 # ---------------------------------------------------------------- IA de aliado
 
 func _process_ai(delta: float) -> Vector3:
+	var m := _ai_decide(delta)
+	return _ai_handle_ledges(m)
+
+
+## A IA pula vãos curtos e beiradas quando o líder subiu; para na beira de
+## vãos que não consegue passar (o reagrupar resolve se ela ficar para trás).
+func _ai_handle_ledges(m: Vector3) -> Vector3:
+	if m.length() < 0.1 or not is_on_floor():
+		return m
+	var dir := Vector3(m.x, 0.0, m.z).normalized()
+	if Game.gap_ahead(global_position, dir, 1.0):
+		var land := global_position + dir * 2.4
+		if not Game.is_over_gap(land) and not Game.is_over_gap(land + dir * 0.5):
+			jump()
+			return m
+		return Vector3.ZERO
+	if is_on_wall() and Game.party != null and Game.party.controlled_hero != null:
+		var leader: Hero = Game.party.controlled_hero
+		if leader.global_position.y > global_position.y + 0.4 or _ai_waypoint.y > global_position.y + 0.4:
+			jump()
+	return m
+
+
+func _ai_decide(delta: float) -> Vector3:
 	var party := Game.party
 	if party == null:
 		return Vector3.ZERO

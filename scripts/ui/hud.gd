@@ -95,7 +95,7 @@ func setup(p: Party, l: PostoVigia) -> void:
 		_ability_labels.append(al)
 
 	# Ajuda (canto inferior esquerdo).
-	var help := _label("WASD mover · Mouse mirar · Clique básico · Q/E habilidades · R especial\nShift dash · 1-4/Tab trocar · F interagir/reanimar · Esc pausa\nF3 (teste) soltar o Feixe · F5 reiniciar", 13)
+	var help := _label("WASD mover · Mouse mirar · Clique básico · Q/E habilidades · R especial\nEspaço pular (Fênix: segure no ar para planar) · Shift dash · 1-4/Tab trocar · F interagir/reanimar · Esc pausa\nF3 (teste) soltar o Feixe · F5 reiniciar", 13)
 	help.modulate = Color(1, 1, 1, 0.7)
 	_place(help, Control.PRESET_BOTTOM_LEFT, 16, -70, 600, -12)
 	root.add_child(help)
