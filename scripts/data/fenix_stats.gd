@@ -19,10 +19,10 @@ extends HeroStats
 @export var heal_pick_radius: float = 3.0
 
 @export_group("Mergulho da Ave (R)")
-@export var dive_max_distance: float = 10.0
-@export var dive_time: float = 0.45
+@export var dive_max_distance: float = 12.0
+@export var dive_time: float = 0.5
 @export var dive_damage: float = 80.0
-@export var dive_radius: float = 4.0
+@export var dive_radius: float = 6.0
 
 @export_group("Renascer (passiva)")
 @export var rebirth_health_fraction: float = 0.5
