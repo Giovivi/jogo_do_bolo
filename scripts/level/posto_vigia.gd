@@ -40,6 +40,11 @@ var _exit_rect := Rect2(-5, 23, 4, 4)
 var _cell_timer: float = -1.0
 var _cell_events: Array[Dictionary] = []
 var _cell_done: bool = false
+## Textura do chão da sala em construção: [id, metros por repetição, tinta].
+## Fotos do ambientCG (CC0), ver assets/textures/CREDITS.md.
+var _floor_tex: Array = ["Concrete044D", 2.5, Color(0.8, 0.8, 0.82)]
+const WALL_TEX := ["Concrete031", 3.0, Color(0.9, 0.92, 0.95)]
+const CORRIDOR_TEX := ["Concrete044D", 2.5, Color(0.8, 0.8, 0.82)]
 
 
 func _ready() -> void:
@@ -113,6 +118,7 @@ func _build_entrada() -> void:
 
 func _build_triagem() -> void:
 	var c := Color(0.4, 0.43, 0.5)
+	_floor_tex = ["Tiles140", 2.0, Color(1.1, 1.12, 1.18)]
 	_room(20, -10, 40, 10, c, {"W": [[0.0, 4.0]], "E": [[0.0, 4.0]], "N": [[30.0, 4.0]]}, {"S": [[30.0, 8.0]]})
 	# Níveis: mezanino de 1 m no fundo e plataforma de 2 m no canto
 	# nordeste (sobe pelo mezanino, degrau de 1 m), com baú no alto.
@@ -134,6 +140,7 @@ func _build_triagem() -> void:
 
 func _build_secreta() -> void:
 	var c := Color(0.35, 0.33, 0.42)
+	_floor_tex = ["MetalPlates014", 1.6, Color(0.7, 0.72, 0.78)]
 	# Corredor norte com vão de 4 m.
 	_floor(28, -18, 32, -10, c)
 	_wall(28 - WALL_T, -18, 28, -10, WALL_H)
@@ -147,11 +154,13 @@ func _build_secreta() -> void:
 
 func _build_celas() -> void:
 	var c := Color(0.38, 0.4, 0.4)
+	_floor_tex = ["Tiles140", 2.0, Color(1.05, 1.1, 1.1)]
 	_room(50, -10, 70, 10, c, {"W": [[0.0, 4.0]], "E": [[0.0, 4.0]]})
 	_label("3. Celas", Vector3(60, 0, 8.5))
 	# Cela do Feixe (a grade da frente some quando destrava).
-	_wall(57.25, -10, 57.75, -4.5, WALL_H, Color(0.55, 0.6, 0.7))
-	_wall(62.25, -10, 62.75, -4.5, WALL_H, Color(0.55, 0.6, 0.7))
+	for cx in [57.5, 62.5]:
+		var bar := _wall(cx - 0.25, -10, cx + 0.25, -4.5, WALL_H, Color(0.75, 0.8, 0.9))
+		Look.texture_std(bar.get_child(1).material_override, "MetalPlates014", 1.6, Color(0.75, 0.8, 0.9))
 	_cage_front = _wall(57.25, -4.75, 62.75, -4.25, WALL_H, Color(0.5, 0.75, 0.95, 0.45))
 	var console := CellConsole.new()
 	console.position = Vector3(60, 0, -2)
@@ -166,11 +175,13 @@ func _build_celas() -> void:
 
 func _build_hangar() -> void:
 	var c := Color(0.36, 0.38, 0.44)
+	_floor_tex = ["Concrete046", 3.0, Color(0.58, 0.58, 0.6)]
 	_room(78, -12, 102, 12, c, {"W": [[0.0, 4.0]], "S": [[90.0, 4.0]]})
 	_label("4. Hangar", Vector3(90, 0, 10.5))
 	# Passarela alta (inalcançável a pé) com o interruptor.
 	var walkway := _box_body(Vector3(90, 1.5, -10.5), Vector3(24, 3, 3), Color(0.5, 0.52, 0.58), Game.LAYER_WALKWAY)
 	walkway.name = "Passarela"
+	Look.texture_std(walkway.get_child(1).material_override, "DiamondPlate008A", 1.5, Color(0.62, 0.65, 0.7))
 	var sw := BeamSwitch.new()
 	sw.position = Vector3(90, 3.5, -10.5)
 	add_child(sw)
@@ -179,6 +190,7 @@ func _build_hangar() -> void:
 	service.position = Vector3(90, 0, 12)
 	add_child(service)
 	service.setup(Vector3(4, WALL_H, 0.6), Color(0.75, 0.6, 0.2))
+	Look.texture_std(service._mat, "PaintedMetal016", 1.5)
 	_service_door = service
 	sw.triggered.connect(_on_switch_triggered)
 	# Torre de caixas no sudoeste (1 m e 2 m), longe da passarela de 3 m.
@@ -207,6 +219,7 @@ func _on_blast_door_opened() -> void:
 
 func _build_volta() -> void:
 	var c := Color(0.34, 0.36, 0.38)
+	_floor_tex = CORRIDOR_TEX
 	# Corredor de serviço (sai do hangar para o sul).
 	_floor(88, 12, 92, 20, c)
 	_wall(88 - WALL_T, 12, 88, 20, WALL_H)
@@ -221,6 +234,7 @@ func _build_volta() -> void:
 	# para o cofre aparecer, mas não é chão andável.
 	_open_rects.append(Rect2(26, 10, 8, 6))
 	_box_visual(Vector3(30, -0.6, 13), Vector3(8, 0.2, 6), Color(0.12, 0.13, 0.15))
+	_floor_tex = ["DiamondPlate008A", 1.5, Color(0.85, 0.82, 0.72)]
 	_room(24, 16, 36, 28, vc, {"E": [[23.0, 4.0]], "W": [[22.0, 4.0]]}, {"N": [[30.0, 8.0]]})
 	_label("cofre", Vector3(30, 0, 26.5))
 	var blast := Door.new()
@@ -234,6 +248,7 @@ func _build_volta() -> void:
 	_hint(Rect2(37, 20, 8, 6), "Porta blindada: com o Feixe, segure Q para cortar com o laser.")
 	# Saída.
 	_corridor_x(6, 24, 22.0, c)
+	_floor_tex = ["Concrete044D", 2.5, Color(0.72, 0.85, 0.78)]
 	_room(-6, 16, 6, 28, Color(0.3, 0.42, 0.36), {"E": [[22.0, 4.0]]})
 	_label("5. Saída", Vector3(0, 0, 17))
 	_chest(Vector3(2, 0, 25), false, true)
@@ -500,6 +515,15 @@ func _commit(st: SurfaceTool, mesh: ArrayMesh, color: Color) -> void:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# Concreto do bunker nas paredes, metal escuro na faixa do topo.
+	if color.r > 0.5:
+		Look.texture_std(mat, WALL_TEX[0], WALL_TEX[1], WALL_TEX[2])
+	elif color.r > 0.33:
+		Look.texture_std(mat, "Concrete032", 3.0, Color(0.75, 0.77, 0.8))
+	elif color.r > 0.27:
+		Look.texture_std(mat, "Concrete032", 3.0, Color(0.68, 0.7, 0.74))
+	elif color.r > 0.23:
+		Look.texture_std(mat, "Metal027", 2.0, Color(0.8, 0.82, 0.86))
 	st.set_material(mat)
 	st.commit(mesh)
 
@@ -544,13 +568,18 @@ func _platform(x0: float, z0: float, x1: float, z1: float, h: float) -> StaticBo
 	var col := Color(0.5, 0.53, 0.58) if h <= 1.0 else Color(0.46, 0.49, 0.55)
 	var body := _box_body(Vector3((x0 + x1) * 0.5, h * 0.5, (z0 + z1) * 0.5), Vector3(x1 - x0, h, z1 - z0), col, Game.LAYER_WORLD)
 	body.name = "Plataforma"
+	Look.texture_std(body.get_child(1).material_override, "DiamondPlate008A", 1.5, Color(0.95, 0.97, 1.0) if h <= 1.0 else Color(0.85, 0.88, 0.92))
 	var trim := Color(0.93, 0.8, 0.35)
 	var t := 0.1
 	var y := h + 0.01
-	_box_visual(Vector3((x0 + x1) * 0.5, y, z1 - t * 0.5), Vector3(x1 - x0, 0.02, t), trim)
-	_box_visual(Vector3((x0 + x1) * 0.5, y, z0 + t * 0.5), Vector3(x1 - x0, 0.02, t), trim)
-	_box_visual(Vector3(x0 + t * 0.5, y, (z0 + z1) * 0.5), Vector3(t, 0.02, z1 - z0), trim)
-	_box_visual(Vector3(x1 - t * 0.5, y, (z0 + z1) * 0.5), Vector3(t, 0.02, z1 - z0), trim)
+	# Faixa de aviso amarela e preta nas bordas.
+	for strip in [
+		_box_visual(Vector3((x0 + x1) * 0.5, y, z1 - t * 0.5), Vector3(x1 - x0, 0.02, t), trim),
+		_box_visual(Vector3((x0 + x1) * 0.5, y, z0 + t * 0.5), Vector3(x1 - x0, 0.02, t), trim),
+		_box_visual(Vector3(x0 + t * 0.5, y, (z0 + z1) * 0.5), Vector3(t, 0.02, z1 - z0), trim),
+		_box_visual(Vector3(x1 - t * 0.5, y, (z0 + z1) * 0.5), Vector3(t, 0.02, z1 - z0), trim),
+	]:
+		Look.texture_std(strip.material_override, "PaintedMetal016", 0.8)
 	return body
 
 
@@ -615,7 +644,8 @@ func _build_ground() -> void:
 
 func _floor(x0: float, z0: float, x1: float, z1: float, color: Color) -> void:
 	_floor_rects.append(Rect2(x0, z0, x1 - x0, z1 - z0))
-	_box_visual(Vector3((x0 + x1) * 0.5, -0.1, (z0 + z1) * 0.5), Vector3(x1 - x0, 0.2, z1 - z0), color)
+	var ground := _box_visual(Vector3((x0 + x1) * 0.5, -0.1, (z0 + z1) * 0.5), Vector3(x1 - x0, 0.2, z1 - z0), color)
+	Look.texture_std(ground.material_override, _floor_tex[0], _floor_tex[1], _floor_tex[2])
 	# Linhas da grade de 2 m.
 	var grid_color := color.darkened(0.15)
 	var x := ceilf(x0 / 2.0) * 2.0
@@ -682,7 +712,10 @@ func _side_wall(side: String, a: float, b: float, x0: float, z0: float, x1: floa
 
 ## Corredor leste-oeste de 4 m de largura centrado em z.
 func _corridor_x(x0: float, x1: float, z: float, color: Color) -> void:
+	var room_tex := _floor_tex
+	_floor_tex = CORRIDOR_TEX
 	_floor(x0, z - 2, x1, z + 2, color)
+	_floor_tex = room_tex
 	_wall(x0, z - 2 - WALL_T, x1, z - 2, WALL_H)
 	_wall(x0, z + 2, x1, z + 2 + WALL_T, WALL_H)
 
@@ -690,8 +723,13 @@ func _corridor_x(x0: float, x1: float, z: float, color: Color) -> void:
 func _wall(x0: float, z0: float, x1: float, z1: float, height: float, color: Color = Color(0.62, 0.63, 0.66)) -> StaticBody3D:
 	var size := Vector3(x1 - x0, height, z1 - z0)
 	var center := Vector3((x0 + x1) * 0.5, height * 0.5, (z0 + z1) * 0.5)
+	# Paredes opacas: concreto do bunker (a cor vira a tinta da foto).
+	if color.a >= 1.0 and color == Color(0.62, 0.63, 0.66):
+		color = WALL_TEX[2]
 	var body := _box_body(center, size, color, Game.LAYER_WORLD)
 	var mi := body.get_child(1) as MeshInstance3D
+	if color == WALL_TEX[2]:
+		Look.texture_std(mi.material_override, WALL_TEX[0], WALL_TEX[1], color)
 	_walls.append({
 		"body": body,
 		"rect": Rect2(x0, z0, x1 - x0, z1 - z0),
@@ -703,7 +741,9 @@ func _wall(x0: float, z0: float, x1: float, z1: float, height: float, color: Col
 
 
 func _crate(cx: float, cz: float, sx: float, sz: float) -> void:
-	_box_body(Vector3(cx, 0.6, cz), Vector3(sx, 1.2, sz), Color(0.5, 0.45, 0.35), Game.LAYER_WORLD)
+	var crate := _box_body(Vector3(cx, 0.6, cz), Vector3(sx, 1.2, sz), Color(0.5, 0.45, 0.35), Game.LAYER_WORLD)
+	# Caixote militar de chapa, verde-oliva.
+	Look.texture_std(crate.get_child(1).material_override, "MetalPlates014", 1.2, Color(0.62, 0.66, 0.45))
 
 
 func _box_body(center: Vector3, size: Vector3, color: Color, layer: int) -> StaticBody3D:

@@ -29,6 +29,8 @@ func setup(size: Vector3, color: Color) -> void:
 	_mat = StandardMaterial3D.new()
 	_mat.albedo_color = color
 	_mat.metallic = 0.6 if blast_door else 0.1
+	if blast_door:
+		Look.texture_std(_mat, "MetalPlates014", 1.6, color.lightened(0.3))
 	_mesh.material_override = _mat
 	_mesh.position.y = size.y * 0.5
 	add_child(_mesh)

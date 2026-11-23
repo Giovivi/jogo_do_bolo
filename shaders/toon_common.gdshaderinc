@@ -44,3 +44,33 @@ void toon_light(vec3 normal, vec3 light, vec3 light_color, float attenuation, bo
 		diffuse += light_color / PI * band * pool;
 	}
 }
+
+// Texturas (ambientCG, CC0) projetadas pelo eixo dominante da normal: as peças
+// são caixas alinhadas ao mundo, então cada face recebe a textura de pé.
+vec2 box_uv(vec3 p, vec3 n) {
+	if (abs(n.y) > 0.6) {
+		return p.xz;
+	}
+	return abs(n.x) > abs(n.z) ? vec2(p.z, -p.y) : vec2(p.x, -p.y);
+}
+
+// Normal do mapa (padrão OpenGL) levada para o mundo na mesma projeção.
+vec3 box_normal(vec3 nmap, vec3 n, float strength) {
+	vec3 t = vec3(1.0, 0.0, 0.0);
+	vec3 b = vec3(0.0, 1.0, 0.0);
+	if (abs(n.y) > 0.6) {
+		b = vec3(0.0, 0.0, -1.0);
+	} else if (abs(n.x) > abs(n.z)) {
+		t = vec3(0.0, 0.0, 1.0);
+	}
+	vec3 d = nmap * 2.0 - 1.0;
+	d.xy *= strength;
+	return normalize(t * d.x + b * d.y + n * max(d.z, 0.2));
+}
+
+// Cor da textura com contraste reduzido (o cel shading pede manchas largas).
+vec3 tex_color(sampler2D tex, vec2 uv, vec3 tint, float contrast) {
+	vec3 c = texture(tex, uv).rgb;
+	vec3 avg = textureLod(tex, uv, 10.0).rgb;
+	return mix(avg, c, contrast) * tint;
+}
