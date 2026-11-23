@@ -11,8 +11,8 @@ extends HeroStats
 
 @export_group("Asas de Fogo (Q)")
 @export var wings_damage: float = 25.0
-@export var wings_range: float = 6.0
-@export var wings_arc_degrees: float = 70.0
+@export var wings_range: float = 8.0
+@export var wings_arc_degrees: float = 90.0
 
 @export_group("Chama Azul (E)")
 @export var heal_amount: float = 30.0
