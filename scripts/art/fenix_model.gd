@@ -25,6 +25,8 @@ var anim: AnimationPlayer
 var _one_shot: String = ""
 ## Fogo azul de cada mão ("L"/"R"), criado só por quem chama add_hand_fire() (Fênix).
 var hand_fire: Dictionary = {}
+## Pernas andando durante os golpes (o tronco bate, as pernas seguem o passo).
+var legs: LegsOverride
 
 
 func _ready() -> void:
@@ -38,6 +40,13 @@ func _ready() -> void:
 	for n in [IDLE, WALK, RUN, AIR]:
 		anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
 	anim.animation_finished.connect(_on_finished)
+	var found := m.find_children("*", "Skeleton3D", true, false)
+	if not found.is_empty():
+		legs = LegsOverride.new()
+		legs.influence = 0.0
+		legs.active = false
+		(found.front() as Skeleton3D).add_child(legs)
+		legs.setup(found.front() as Skeleton3D, anim.get_animation(WALK))
 	_play(IDLE)
 
 
@@ -51,30 +60,49 @@ func play_once(anim_name: String, speed: float = 1.0) -> void:
 	anim.seek(0.0, true)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if anim == null or hero == null:
 		return
 	if hero.is_dead:
+		_update_legs(delta, false, 0.0, 1.0)
 		if _one_shot != DEATH:
 			play_once(DEATH)
 		return
 	if _one_shot == DEATH:
 		_one_shot = ""
+	var flat_v := Vector3(hero.velocity.x, 0.0, hero.velocity.z)
+	var flat := flat_v.length()
+	# Andando de ré (corpo virado para o alvo, indo para longe dele): passos ao contrário.
+	var dir := 1.0
+	if flat > 0.3 and flat_v.normalized().dot(hero.facing) < -0.3:
+		dir = -1.0
+	var grounded := hero.is_on_floor() or absf(hero.velocity.y) <= 0.5
+	_update_legs(delta, _one_shot != "" and grounded and flat > 0.3, flat, dir)
 	if _one_shot != "":
 		return
-	var flat := Vector2(hero.velocity.x, hero.velocity.z).length()
-	if not hero.is_on_floor() and absf(hero.velocity.y) > 0.5:
+	if not grounded:
 		_play(AIR)
 	elif flat < 0.3:
 		_play(IDLE)
-	elif flat < 3.0:
-		_play(WALK, flat / WALK_ANIM_SPEED)
+	elif flat < 3.0 or dir < 0.0:
+		# De ré ele só anda (a corrida de costas fica estranha).
+		_play(WALK, flat / WALK_ANIM_SPEED, dir)
 	else:
 		_play(RUN, flat / RUN_ANIM_SPEED)
 
 
-func _play(anim_name: String, speed: float = 1.0) -> void:
-	anim.speed_scale = clampf(speed, 0.5, 2.2)
+## Pernas da animação de andar por cima do golpe, no ritmo da velocidade real.
+func _update_legs(delta: float, on: bool, flat: float, dir: float) -> void:
+	if legs == null:
+		return
+	if on:
+		legs.time += delta * (flat / WALK_ANIM_SPEED) * dir
+	legs.influence = move_toward(legs.influence, 1.0 if on else 0.0, delta * 8.0)
+	legs.active = legs.influence > 0.0
+
+
+func _play(anim_name: String, speed: float = 1.0, dir: float = 1.0) -> void:
+	anim.speed_scale = clampf(speed, 0.5, 2.2) * dir
 	if anim.current_animation != anim_name:
 		anim.play(anim_name, 0.15)
 
