@@ -306,13 +306,14 @@ func flash_cone(origin: Vector3, dir: Vector3, length: float, arc_degrees: float
 	if flat.length() < 0.01:
 		flat = Vector3.FORWARD
 	var basis := Basis.looking_at(flat, Vector3.UP)
-	flash_shape(im, Transform3D(basis, Vector3(origin.x, 0.15, origin.z)), color, duration)
+	flash_shape(im, Transform3D(basis, Vector3(origin.x, origin.y + 0.15, origin.z)), color, duration)
 
 
 ## Faixa reta no chão de "from" até "to".
 func flash_line(from: Vector3, to: Vector3, width: float, color: Color, duration: float = 0.2, height: float = 1.1) -> void:
-	var flat_from := Vector3(from.x, height, from.z)
-	var flat_to := Vector3(to.x, height, to.z)
+	# Na altura de quem usou (no mezanino, não no andar de baixo).
+	var flat_from := Vector3(from.x, from.y + height, from.z)
+	var flat_to := Vector3(to.x, from.y + height, to.z)
 	var length := flat_from.distance_to(flat_to)
 	if length < 0.01:
 		return

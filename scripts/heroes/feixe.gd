@@ -202,12 +202,7 @@ func _tick_laser(delta: float) -> void:
 		return
 	var from := _muzzle()
 	var to := _beam_end(from, s.laser_range)
-	# Porta blindada: o raio forte corta.
-	var hit := Game.raycast_world(from, from + (to - from) * 1.05)
-	if not hit.is_empty():
-		var col: Object = hit["collider"]
-		if col != null and col is Node and (col as Node).is_in_group("blast_doors"):
-			col.call("cut", delta, self)
+	_cut_blast_doors(from, to, delta)
 	_hit_switches(from, to)
 	# Visual: raio grosso e clarão maior, fixos no rosto.
 	var widths: Array[float] = [0.7, 0.16]
@@ -225,6 +220,20 @@ func _tick_laser(delta: float) -> void:
 		for enemy in _enemies_on_beam(from, to, s.laser_width):
 			# Forte: interrompe o inimigo. "quiet" evita pausa a cada pulso.
 			deal_damage(enemy, dmg, {"strength": Impact.STRONG, "push": 0.3, "quiet": true, "dir": facing, "ability": true, "color": Color(1, 0.4, 0.4)})
+
+
+## Porta blindada: o raio forte corta se passar por ela (com folga de
+## ~1 m), mesmo que a ponta do raio pare no batente da parede.
+func _cut_blast_doors(from: Vector3, to: Vector3, delta: float) -> void:
+	var far := from + (to - from).normalized() * (from.distance_to(to) + 1.0)
+	for d in get_tree().get_nodes_in_group("blast_doors"):
+		var door := d as Door
+		if door == null or door.is_open:
+			continue
+		if absf(door.global_position.y - global_position.y) > 2.0:
+			continue
+		if Game.flat_distance_to_segment(door.global_position, from, far) <= 1.6:
+			door.cut(delta, self)
 
 
 # ---------------------------------------------------------------- E: Cone de Raios

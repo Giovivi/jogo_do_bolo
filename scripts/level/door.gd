@@ -5,7 +5,7 @@ extends StaticBody3D
 signal opened_door
 
 @export var blast_door: bool = false
-@export var cut_time_needed: float = 2.0
+@export var cut_time_needed: float = 1.5
 
 var is_open: bool = false
 var cut_progress: float = 0.0
@@ -54,7 +54,10 @@ func cut(delta: float, source: Node) -> void:
 	var f := clampf(cut_progress / cut_time_needed, 0.0, 1.0)
 	_mat.emission_enabled = true
 	_mat.emission = Color(1.0, 0.4, 0.1) * f
+	# Mostra o progresso só enquanto corta.
 	_label.text = "cortando %d%%" % int(f * 100.0)
+	_label.visible = true
+	_label.modulate = Color(1.0, 0.6, 0.3)
 	if cut_progress >= cut_time_needed:
 		open()
 
