@@ -14,9 +14,18 @@ var _glide_travelled: float = 0.0
 
 func _ready() -> void:
 	super._ready()
+	_use_model()
 	# Chama dourada no golpe comum, azul no forte.
 	impact_color = Color(1.0, 0.8, 0.3, 0.9)
 	impact_color_strong = Color(0.35, 0.65, 1.0, 0.9)
+
+
+## Troca a cápsula provisória pelo modelo 3D (a colisão continua a mesma).
+func _use_model() -> void:
+	for child in visual.get_children():
+		if child is MeshInstance3D:
+			child.visible = false
+	visual.add_child(FenixModel.new())
 
 
 func _fx() -> FenixStats:
