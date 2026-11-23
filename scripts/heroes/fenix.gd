@@ -139,7 +139,14 @@ func blue_flame(aim: Vector3, use_mouse: bool, forced_target: Hero = null) -> bo
 		return false
 	var s := _fx()
 	var target: Hero = forced_target
-	if target == null and use_mouse and Game.party != null:
+	if target == null and use_mouse and Game.party != null and Game.rules.camera_behind and not Game.rules.behind_reticle:
+		# Câmera atrás: o aliado mais perto na frente do Fênix.
+		var allies: Array = []
+		for h in Game.party.living_heroes():
+			if h != self:
+				allies.append(h)
+		target = Game.front_pick(global_position, facing, 10.0, allies) as Hero
+	elif target == null and use_mouse and Game.party != null:
 		var best_d := s.heal_pick_radius
 		for h in Game.party.living_heroes():
 			if h == self:

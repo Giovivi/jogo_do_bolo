@@ -111,7 +111,10 @@ func _build_entrada() -> void:
 	# Plataforma de 1 m no canto: sobe com um pulo.
 	_platform(3, -8, 8, -4, 1.0)
 	_enemy_group("Entrada B", SOLDIER, 2, [Vector3(6, 0, 5), Vector3(5.5, 1, -6)])
-	_hint(Rect2(-8, 0, 10, 8), "WASD move · Espaço pula · mouse mira · clique ataca · Q e E habilidades · Shift dash")
+	if Game.rules.camera_behind:
+		_hint(Rect2(-8, 0, 10, 8), "WASD move · mouse gira a câmera · Espaço pula · clique ataca · Q e E habilidades · Shift dash")
+	else:
+		_hint(Rect2(-8, 0, 10, 8), "WASD move · Espaço pula · mouse mira · clique ataca · Q e E habilidades · Shift dash")
 	_hint(Rect2(-8, -3, 7, 2.5), "Vão de 2 m: pule (Espaço) com corrida até a saliência do baú.")
 	_corridor_x(8, 20, 0.0, c)
 
@@ -433,6 +436,9 @@ func _build_structure() -> void:
 			var c := Vector2(x_min + ix + 0.5, z_min + iz + 0.5)
 			var low := false
 			var k := 0.5
+			# Câmera atrás do herói: sem corte, paredes inteiras.
+			if Game.rules.camera_behind:
+				k = reach + 1.0
 			while k <= reach:
 				var q := c + view * k
 				var qx := int(floor(q.x)) - x_min

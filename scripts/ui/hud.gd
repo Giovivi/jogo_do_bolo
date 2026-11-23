@@ -54,6 +54,9 @@ func _ready() -> void:
 	layer = 10
 
 
+var _reticle: Control
+
+
 func setup(p: Party, l: PostoVigia) -> void:
 	party = p
 	level = l
@@ -66,6 +69,9 @@ func setup(p: Party, l: PostoVigia) -> void:
 	_build_party()
 	_build_abilities()
 	_build_texts()
+	_reticle = Reticle.new()
+	_reticle.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_root.add_child(_reticle)
 	_balloon = InteractBalloon.new()
 	_balloon.visible = false
 	_root.add_child(_balloon)
@@ -467,6 +473,7 @@ func _process(delta: float) -> void:
 	_update_party()
 	_update_abilities()
 	_update_objective()
+	_reticle.visible = Game.rules.camera_behind and Game.rules.behind_reticle and not get_tree().paused
 
 
 ## Detecta golpe ou cura comparando com o quadro anterior e avisa o retrato.
@@ -668,3 +675,16 @@ class SpecialBar extends Control:
 			var f := PackedVector2Array([Vector2(k + b, b), Vector2(k + w - b, b), Vector2(w - b, size.y - b), Vector2(b, size.y - b)])
 			var col := UIStyle.LAMP if value < 1.0 else UIStyle.LAMP2
 			draw_colored_polygon(f, col)
+
+
+## Retícula da câmera atrás do herói: anel fino com ponto, no centro.
+class Reticle extends Control:
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var c := size * 0.5
+		draw_arc(c, 11.0, 0.0, TAU, 32, Color(0, 0, 0, 0.6), 4.0, true)
+		draw_arc(c, 11.0, 0.0, TAU, 32, Color(1, 1, 1, 0.9), 2.0, true)
+		draw_circle(c, 3.0, Color(0, 0, 0, 0.6))
+		draw_circle(c, 2.0, Color(1, 1, 1, 0.95))
