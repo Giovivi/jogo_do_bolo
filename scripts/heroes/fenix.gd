@@ -12,6 +12,11 @@ var _glide_dir: Vector3 = Vector3.ZERO
 var _glide_travelled: float = 0.0
 var model: FenixModel
 
+## Tempos da Chama Azul e do Mergulho da Ave (o mergulho em si usa dive_time).
+const ABSORB_TIME := 0.55
+const DIVE_CHARGE := 0.4
+const DIVE_RISE := 0.3
+
 
 func _ready() -> void:
 	super._ready()
@@ -115,9 +120,10 @@ func fire_wings() -> bool:
 		return false
 	var s := _fx()
 	start_cooldown("q", s.q_cooldown)
-	ability_lock = 0.25
+	ability_lock = 0.3
 	model.play_once("Spell_Simple_Shoot", 1.4)
-	Game.flash_cone(global_position, facing, s.wings_range, s.wings_arc_degrees, Color(1.0, 0.35, 0.05, 0.7), 0.35)
+	# Asas de fogo abrem das costas e batem para a frente soltando o cone.
+	FenixFX.wings(self, facing, s.wings_range, s.wings_arc_degrees)
 	for e in Game.living_enemies():
 		var enemy := e as Actor
 		if Game.in_cone(global_position, facing, enemy.global_position, s.wings_range, s.wings_arc_degrees, enemy.body_radius) \
@@ -145,13 +151,20 @@ func blue_flame(aim: Vector3, use_mouse: bool, forced_target: Hero = null) -> bo
 	if target == null:
 		target = self
 	start_cooldown("e", s.e_cooldown)
-	ability_lock = 0.2
-	model.play_once("Spell_Simple_Shoot", 1.4)
-	target.heal(s.heal_amount)
-	Game.flash_ring(target.global_position, 1.2, Color(0.3, 0.6, 1.0, 0.7), 0.5)
-	if target != self:
-		Game.flash_line(global_position, target.global_position, 0.25, Color(0.3, 0.6, 1.0, 0.6), 0.3)
+	# Suga o fogo em volta para dentro do peito; a cura sai no fim.
+	ability_lock = ABSORB_TIME
+	model.play_once("Spell_Simple_Shoot", 0.7)
+	FenixFX.absorb(self, ABSORB_TIME)
+	get_tree().create_timer(ABSORB_TIME).timeout.connect(_finish_blue_flame.bind(target, s.heal_amount))
 	return true
+
+
+func _finish_blue_flame(target: Hero, amount: float) -> void:
+	if not is_instance_valid(target) or target.is_dead:
+		return
+	target.heal(amount)
+	if target != self:
+		FenixFX.heal_link(self, target)
 
 
 # ---------------------------------------------------------------- R: Mergulho da Ave
@@ -177,18 +190,28 @@ func use_special(aim: Vector3) -> bool:
 		dest.y = g.y + 0.05
 	busy = true
 	invulnerable = true
-	ability_lock = s.dive_time + 0.1
-	var start := global_position
+	velocity = Vector3.ZERO
+	ability_lock = DIVE_CHARGE + DIVE_RISE + s.dive_time + 0.15
+	# 1. Carga: agacha fazendo força, o fogo junta nos pés.
+	model.play_once("Jump_Start", 0.0)
+	FenixFX.charge(self, DIVE_CHARGE)
 	var tw := create_tween()
-	tw.tween_method(_dive_step.bind(start, dest), 0.0, 1.0, s.dive_time)
+	tw.tween_interval(DIVE_CHARGE)
+	# 2. Salto: o corpo sobe e sai da tela; a coluna de fogo fica para trás.
+	tw.tween_callback(func() -> void:
+		model.play_once("Jump_Start", 1.8)
+		FenixFX.launch(global_position))
+	tw.tween_property(visual, "position:y", 14.0, DIVE_RISE).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	# 3. Volta como fênix de fogo mergulhando no alvo (a câmera desliza junto).
+	tw.tween_callback(func() -> void:
+		visual.visible = false
+		visual.position.y = 0.0
+		global_position = dest
+		FenixFX.phoenix(dest, s.dive_time))
+	tw.tween_interval(s.dive_time)
+	# 4. Impacto.
 	tw.tween_callback(_dive_land)
 	return true
-
-
-func _dive_step(t: float, start: Vector3, dest: Vector3) -> void:
-	var pos := start.lerp(dest, t)
-	pos.y += sin(t * PI) * 4.0
-	global_position = pos
 
 
 func _dive_land() -> void:
@@ -196,12 +219,17 @@ func _dive_land() -> void:
 	busy = false
 	invulnerable = false
 	velocity = Vector3.ZERO
-	Game.flash_ring(global_position, s.dive_radius, Color(1.0, 0.4, 0.1, 0.8), 0.5)
+	visual.visible = true
+	visual.position.y = 0.0
+	model.play_once("Jump_Land", 1.3)
+	FenixFX.impact(global_position, s.dive_radius)
 	for e in Game.living_enemies():
 		var enemy := e as Actor
 		if Game.flat_distance(enemy.global_position, global_position) <= s.dive_radius + enemy.body_radius \
 				and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
-			deal_damage(enemy, s.dive_damage, {"strength": Impact.SPECIAL, "ability": true, "color": Color(1, 0.5, 0.1)})
+			var dir := enemy.global_position - global_position
+			dir.y = 0.0
+			deal_damage(enemy, s.dive_damage, {"strength": Impact.SPECIAL, "ability": true, "dir": dir, "color": Color(1, 0.5, 0.1)})
 
 
 # ---------------------------------------------------------------- passivas
