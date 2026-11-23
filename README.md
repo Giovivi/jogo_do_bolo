@@ -55,9 +55,9 @@ O documento de design atualizado está em `docs/Projeto_Mutantes_GDD_v0.3.pdf`.
 
 **Fênix** (começa sozinho)
 - Clique: combo de garras 10/10/18, o 3º golpe é forte (empurra, interrompe e dá pausa de impacto). Garras não alcançam drones.
-- Q Asas de Fogo: cone de 25 de dano, acerta drones (recarga 6 s).
+- Q Asas de Fogo: asas de fogo abrem das costas e soltam um cone de 8 m e 90°, com chamas na horizontal. 25 de dano, acerta drones (recarga 6 s).
 - E Chama Azul: cura 30 no aliado mais perto do cursor, ou em si mesmo (recarga 12 s).
-- R Mergulho da Ave: voa até o cursor (até 10 m) e explode em área, 80 de dano.
+- R Mergulho da Ave: agacha, sobe e sai da tela, volta como fênix de fogo até o cursor (até 12 m) e explode num raio de 6 m, 80 de dano.
 - Passivas: Renascer (1x por fase volta com 50% e explode 40 em volta) e Regeneração (3/s depois de 4 s fora de combate).
 
 **Feixe** (resgatado na sala 3)
