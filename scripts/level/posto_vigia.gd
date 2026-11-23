@@ -44,6 +44,10 @@ var _exit_rect := Rect2(-5, -39, 4, 4)
 var _cell_timer: float = -1.0
 var _cell_events: Array[Dictionary] = []
 var _cell_done: bool = false
+## Corte por sala: grupos de estrutura (máscara, malha alta, malha cortada).
+var _cut_groups: Array[Dictionary] = []
+var _cut_zones: Array[Rect2] = []
+var _cut_room: int = -2
 ## Textura do chão da sala em construção: [id, metros por repetição, tinta].
 ## Fotos do ambientCG (CC0), ver assets/textures/CREDITS.md.
 var _floor_tex: Array = ["Concrete044D", 2.5, Color(0.8, 0.8, 0.82)]
@@ -61,22 +65,32 @@ func _build_camera_zones() -> void:
 	var root := Node3D.new()
 	root.name = "ZonasDeCamera"
 	add_child(root)
+	for z in _zone_table():
+		CameraZone.make(root, z[0], z[1], z[2], z[3], z[4], z[5])
+
+
+## Salas: [x0, z0, x1, z1, nível de zoom, nome]. Servem para a câmera e para
+## o corte das paredes (só a sala atual tem a frente cortada).
+func _zone_table() -> Array:
 	if self is Escola:
-		CameraZone.make(root, -20, 8, 20, 24, CameraZone.Level.OPEN, "Frente")
-		CameraZone.make(root, 72, -14, 88, 4, CameraZone.Level.MEDIUM, "Saguao")
-		CameraZone.make(root, 56, -14, 71, 4, CameraZone.Level.MEDIUM, "Laboratorio")
-		CameraZone.make(root, 89, -14, 104, 4, CameraZone.Level.MEDIUM, "Treino")
-		CameraZone.make(root, 74, -24, 86, -14.5, CameraZone.Level.CLOSED, "Sala dos planos")
-		return
-	CameraZone.make(root, -8, -8, 8, 8, CameraZone.Level.MEDIUM, "Entrada")
-	CameraZone.make(root, 20, -10, 40, 10, CameraZone.Level.OPEN, "Triagem")
-	CameraZone.make(root, 13, -28, 25, -18, CameraZone.Level.CLOSED, "Sala secreta")
-	CameraZone.make(root, 50, -10, 70, 10, CameraZone.Level.OPEN, "Celas")
-	CameraZone.make(root, 78, -12, 102, 12, CameraZone.Level.OPEN, "Hangar")
-	CameraZone.make(root, 96, -30, 102, -12, CameraZone.Level.CLOSED, "Servico")
-	CameraZone.make(root, 52, -34, 70, -16, CameraZone.Level.MEDIUM, "Deposito")
-	CameraZone.make(root, 26, -24, 36, -14, CameraZone.Level.CLOSED, "Cofre")
-	CameraZone.make(root, -6, -40, 6, -26, CameraZone.Level.CLOSED, "Saida")
+		return [
+			[-20, 8, 20, 24, CameraZone.Level.OPEN, "Frente"],
+			[72, -14, 88, 4, CameraZone.Level.MEDIUM, "Saguao"],
+			[56, -14, 71, 4, CameraZone.Level.MEDIUM, "Laboratorio"],
+			[89, -14, 104, 4, CameraZone.Level.MEDIUM, "Treino"],
+			[74, -24, 86, -14.5, CameraZone.Level.CLOSED, "Sala dos planos"],
+		]
+	return [
+		[-8, -8, 8, 8, CameraZone.Level.MEDIUM, "Entrada"],
+		[20, -10, 40, 10, CameraZone.Level.OPEN, "Triagem"],
+		[13, -28, 25, -18, CameraZone.Level.CLOSED, "Sala secreta"],
+		[50, -10, 70, 10, CameraZone.Level.OPEN, "Celas"],
+		[78, -12, 102, 12, CameraZone.Level.OPEN, "Hangar"],
+		[96, -30, 102, -12, CameraZone.Level.CLOSED, "Servico"],
+		[52, -34, 70, -16, CameraZone.Level.MEDIUM, "Deposito"],
+		[26, -24, 36, -14, CameraZone.Level.CLOSED, "Cofre"],
+		[-6, -40, 6, -26, CameraZone.Level.CLOSED, "Saida"],
+	]
 
 
 func build() -> void:
@@ -390,6 +404,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var hero: Hero = party.controlled_hero
 	_update_wall_fade(hero.global_position)
+	_update_cutaway(hero.global_position)
 	_update_hints(hero.global_position)
 	if not Game.run_finished and _exit_rect.has_point(Vector2(hero.global_position.x, hero.global_position.z)):
 		run_completed.emit()
@@ -462,6 +477,19 @@ func _build_structure() -> void:
 						break
 			open[iz * nx + ix] = v
 
+	# Sala de cada célula aberta (máscara de bits das zonas de câmera).
+	# Vãos e corredores fora de qualquer zona contam para as salas a até
+	# 3 m; se não houver nenhuma, para a mais próxima.
+	var zones := _zone_rects()
+	var room_of := PackedInt32Array()
+	room_of.resize(nx * nz)
+	for iz in nz:
+		for ix in nx:
+			if open[iz * nx + ix] == 0:
+				continue
+			var p := Vector2(x_min + ix + 0.5, z_min + iz + 0.5)
+			room_of[iz * nx + ix] = _rooms_at(zones, p)
+
 	# Direção em que a câmera olha, no chão.
 	var yaw := deg_to_rad(Game.rules.camera_yaw_degrees)
 	var view := Vector2(-sin(yaw), -cos(yaw))
@@ -470,79 +498,108 @@ func _build_structure() -> void:
 	var reach := back_h / tan(pitch) + Game.rules.cutaway_margin
 	var side_cut := not (self is Escola)
 
-	# 0 = aberto, 1 = estrutura baixa (cortada), 2 = estrutura alta.
-	var kind := PackedByteArray()
-	kind.resize(nx * nz)
+	# Para cada célula de estrutura: em quais salas ela fica cortada baixa
+	# (as que estão logo atrás dela, vistas da câmera). Fora dessas salas ela
+	# fica alta, para não se ver uma sala de dentro de outra (opção A da
+	# prancha paredes-altas-v1). Máscara 0 = sempre alta. -1 = chão aberto.
+	var mask := PackedInt32Array()
+	mask.resize(nx * nz)
 	for iz in nz:
 		for ix in nx:
 			var idx := iz * nx + ix
 			if open[idx] != 0:
-				kind[idx] = 0
+				mask[idx] = -1
 				continue
 			var c := Vector2(x_min + ix + 0.5, z_min + iz + 0.5)
-			var low := false
+			var m := 0
 			var k := 0.5
 			while k <= reach:
 				var q := c + view * k
 				var qx := int(floor(q.x)) - x_min
 				var qz := int(floor(q.y)) - z_min
-				if qx >= 0 and qx < nx and qz >= 0 and qz < nz and open[qz * nx + qx] != 0:
-					low = true
-					break
-				# Na fase, chão aberto até 2 m para o lado também corta: assim
-				# as quinas laterais não tampam o herói quando a câmera segue
-				# a mira para o lado.
-				if side_cut and qz >= 0 and qz < nz:
-					for lat in [-2, -1, 1, 2]:
-						var lx: int = qx + lat
-						if lx >= 0 and lx < nx and open[qz * nx + lx] != 0:
-							low = true
-					if low:
-						break
+				if qz >= 0 and qz < nz:
+					if qx >= 0 and qx < nx and open[qz * nx + qx] != 0:
+						m |= room_of[qz * nx + qx]
+					# Na fase, chão aberto até 2 m para o lado também corta: assim
+					# as quinas laterais não tampam o herói quando a câmera segue
+					# a mira para o lado.
+					if side_cut:
+						for lat in [-2, -1, 1, 2]:
+							var lx: int = qx + lat
+							if lx >= 0 and lx < nx and open[qz * nx + lx] != 0:
+								m |= room_of[qz * nx + lx]
 				k += 0.5
-			kind[idx] = 1 if low else 2
+			mask[idx] = m
 
+	# Um grupo de malhas por máscara: versão alta e versão cortada.
 	var low_h := Game.rules.cutaway_height
-	var st_wall := _surface()
-	var st_cap := _surface()
-	var st_upper := _surface()
-	var st_trim := _surface()
-	var st_cut := _surface()
-	var st_cut_cap := _surface()
-	var unused := _surface()
+	var groups := {}
 	for iz in nz:
 		var ix := 0
 		while ix < nx:
-			var kd := kind[iz * nx + ix]
-			if kd == 0:
+			var m := mask[iz * nx + ix]
+			if m < 0:
 				ix += 1
 				continue
 			var start := ix
-			while ix < nx and kind[iz * nx + ix] == kd:
+			while ix < nx and mask[iz * nx + ix] == m:
 				ix += 1
-			var x0 := float(x_min + start) * cell
-			var x1 := float(x_min + ix) * cell
+			if not groups.has(m):
+				groups[m] = {"wall": _surface(), "trim": _surface(), "upper": _surface(), "cap": _surface(),
+						"cut": _surface(), "cut_cap": _surface(), "edge": _surface(), "unused": _surface()}
+			var g: Dictionary = groups[m]
 			var z0 := float(z_min + iz) * cell
 			var z1 := z0 + cell
-			if kd == 2:
-				# Parede de 3 m, faixa escura no topo dela e estrutura acima.
-				_add_box(st_wall, unused, Vector3(x0, 0.0, z0), Vector3(x1, WALL_H - 0.25, z1))
-				_add_box(st_trim, unused, Vector3(x0, WALL_H - 0.25, z0), Vector3(x1, WALL_H, z1))
-				_add_box(st_upper, st_cap, Vector3(x0, WALL_H, z0), Vector3(x1, back_h, z1))
-			else:
-				_add_box(st_cut, st_cut_cap, Vector3(x0, 0.0, z0), Vector3(x1, low_h, z1))
+			# Parede de 3 m, faixa escura no topo dela e estrutura acima.
+			var x0 := float(x_min + start) * cell
+			var x1 := float(x_min + ix) * cell
+			_add_box(g["wall"], g["unused"], Vector3(x0, 0.0, z0), Vector3(x1, WALL_H - 0.25, z1))
+			_add_box(g["trim"], g["unused"], Vector3(x0, WALL_H - 0.25, z0), Vector3(x1, WALL_H, z1))
+			_add_box(g["upper"], g["cap"], Vector3(x0, WALL_H, z0), Vector3(x1, back_h, z1))
+			if m == 0:
+				continue
+			# Versão cortada: célula a célula, com faixa clara no topo das que
+			# encostam no chão (para ler como parede, não como degrau).
+			for cx in range(start, ix):
+				var a := Vector3(float(x_min + cx), 0.0, z0)
+				var b := Vector3(float(x_min + cx + 1), low_h, z1)
+				var edge := false
+				for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					var ex: int = cx + d.x
+					var ez: int = iz + d.y
+					if ex >= 0 and ex < nx and ez >= 0 and ez < nz and open[ez * nx + ex] != 0:
+						edge = true
+				_add_box(g["cut"], g["edge"] if edge else g["cut_cap"], a, b)
 
-	var mesh := ArrayMesh.new()
-	_commit(st_wall, mesh, Color(0.58, 0.6, 0.64))
-	_commit(st_trim, mesh, Color(0.24, 0.25, 0.28))
-	_commit(st_upper, mesh, Color(0.35, 0.37, 0.4))
-	_commit(st_cap, mesh, Color(0.14, 0.15, 0.17))
-	_commit(st_cut, mesh, Color(0.3, 0.31, 0.34))
-	_commit(st_cut_cap, mesh, Color(0.22, 0.23, 0.26))
-	var mi := MeshInstance3D.new()
-	mi.name = "Estrutura"
-	mi.mesh = mesh
-	add_child(mi)
+	var root := Node3D.new()
+	root.name = "Estrutura"
+	add_child(root)
+	_cut_groups.clear()
+	for m in groups:
+		var g: Dictionary = groups[m]
+		var tall := ArrayMesh.new()
+		_commit(g["wall"], tall, Color(0.58, 0.6, 0.64))
+		_commit(g["trim"], tall, Color(0.24, 0.25, 0.28))
+		_commit(g["upper"], tall, Color(0.35, 0.37, 0.4))
+		_commit(g["cap"], tall, Color(0.14, 0.15, 0.17))
+		var mi := MeshInstance3D.new()
+		mi.name = "Alta_%d" % m
+		mi.mesh = tall
+		root.add_child(mi)
+		if m == 0:
+			continue
+		var low := ArrayMesh.new()
+		_commit(g["cut"], low, Color(0.3, 0.31, 0.34))
+		_commit(g["cut_cap"], low, Color(0.22, 0.23, 0.26))
+		_commit_plain(g["edge"], low, Color(0.62, 0.6, 0.52))
+		var lo := MeshInstance3D.new()
+		lo.name = "Cortada_%d" % m
+		lo.mesh = low
+		root.add_child(lo)
+		_cut_groups.append({"mask": m, "tall": mi, "low": lo})
+	_cut_zones = zones
+	_cut_room = -1
+	_update_cutaway(Vector3(player_spawn.x, 0.0, player_spawn.z))
 
 	# As paredes que ficaram dentro da estrutura continuam colidindo,
 	# mas não precisam mais aparecer.
@@ -562,6 +619,66 @@ func _build_structure() -> void:
 		else:
 			kept.append(w)
 	_walls = kept
+
+
+
+## Retângulos das zonas de câmera (as salas), na ordem de _zone_table().
+func _zone_rects() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for z in _zone_table():
+		out.append(Rect2(z[0], z[1], z[2] - z[0], z[3] - z[1]))
+	return out
+
+
+## Máscara das salas a que um ponto de chão pertence.
+func _rooms_at(zones: Array[Rect2], p: Vector2) -> int:
+	var m := 0
+	for i in zones.size():
+		if zones[i].has_point(p):
+			m |= 1 << i
+	if m != 0:
+		return m
+	for i in zones.size():
+		if zones[i].grow(3.0).has_point(p):
+			m |= 1 << i
+	if m != 0:
+		return m
+	var best := 0
+	var best_d := INF
+	for i in zones.size():
+		var r := zones[i]
+		var q := Vector2(clampf(p.x, r.position.x, r.end.x), clampf(p.y, r.position.y, r.end.y))
+		var d := q.distance_to(p)
+		if d < best_d:
+			best_d = d
+			best = i
+	return 1 << best
+
+
+## Corta baixa só a estrutura na frente da sala onde o herói está.
+func _update_cutaway(pos: Vector3) -> void:
+	if _cut_groups.is_empty():
+		return
+	var p := Vector2(pos.x, pos.z)
+	var room := -1
+	for i in _cut_zones.size():
+		if _cut_zones[i].grow(-0.5).has_point(p):
+			room = i
+			break
+	if room < 0:
+		if _cut_room >= 0:
+			return
+		var m := _rooms_at(_cut_zones, p)
+		room = 0
+		while (m >> room) & 1 == 0:
+			room += 1
+	if room == _cut_room:
+		return
+	_cut_room = room
+	for g in _cut_groups:
+		var cut: bool = (int(g["mask"]) >> room) & 1 == 1
+		(g["low"] as Node3D).visible = cut
+		(g["tall"] as Node3D).visible = not cut
 
 
 func _rect_fully_solid(r: Rect2, open: PackedByteArray, x_min: int, z_min: int, nx: int, nz: int) -> bool:
@@ -597,6 +714,15 @@ func _commit(st: SurfaceTool, mesh: ArrayMesh, color: Color) -> void:
 		Look.texture_std(mat, "Concrete032", 3.0, Color(0.68, 0.7, 0.74))
 	elif color.r > 0.23:
 		Look.texture_std(mat, "Metal027", 2.0, Color(0.8, 0.82, 0.86))
+	st.set_material(mat)
+	st.commit(mesh)
+
+
+
+func _commit_plain(st: SurfaceTool, mesh: ArrayMesh, color: Color) -> void:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 0.8
 	st.set_material(mat)
 	st.commit(mesh)
 
