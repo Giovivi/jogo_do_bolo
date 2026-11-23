@@ -14,6 +14,13 @@ const COYOTE_TIME := 0.12
 const FALL_LIMIT_Y := -2.5
 ## Até onde a mira pela tela procura inimigos (m).
 const AIM_RANGE := 18.0
+## Depois de atacar, o corpo fica virado para o alvo por este tempo (s);
+## fora disso ele olha para onde anda.
+const AIM_HOLD := 0.4
+## Velocidade enquanto ataca (fração da normal): dá para recuar batendo.
+const ATTACK_MOVE_MULTIPLIER := 0.4
+## Quão rápido o corpo gira para a nova direção (maior = mais rápido).
+const TURN_RATE := 22.0
 
 @export var stats: HeroStats
 
@@ -56,6 +63,9 @@ var _select_ring: MeshInstance3D
 var _down_marker: Node3D
 var _down_label: Label3D
 var _time: float = 0.0
+## Tempo restante virado para o alvo (atacando).
+var aim_hold: float = 0.0
+var _visual_yaw: float = 0.0
 
 
 func _ready() -> void:
@@ -137,6 +147,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_process_regen(delta)
 	ability_lock = maxf(0.0, ability_lock - delta)
+	aim_hold = maxf(0.0, aim_hold - delta)
 
 	var move := Vector3.ZERO
 	if _dash_time_left > 0.0:
@@ -145,9 +156,11 @@ func _physics_process(delta: float) -> void:
 		if _dash_time_left <= 0.0:
 			_end_dash()
 		move_and_slide()
+		_turn_visual(delta)
 		return
 	if busy:
 		_process_busy(delta)
+		_turn_visual(delta)
 		return
 
 	if _stun_time > 0.0:
@@ -167,6 +180,8 @@ func _physics_process(delta: float) -> void:
 	var kb := apply_knockback(delta)
 	var on_floor := is_on_floor()
 	var speed := stats.move_speed * move_multiplier
+	if controlled and aim_hold > 0.0:
+		speed = stats.move_speed * minf(move_multiplier, ATTACK_MOVE_MULTIPLIER)
 	if not on_floor:
 		speed *= stats.air_speed_multiplier
 	var v := move * speed + kb
@@ -189,6 +204,25 @@ func _physics_process(delta: float) -> void:
 	velocity = v
 	move_and_slide()
 	_after_move()
+	_turn_visual(delta)
+
+
+## Herói: só muda a direção lógica; o corpo gira suave em _turn_visual().
+func face_towards(point: Vector3) -> void:
+	var d := point - global_position
+	d.y = 0.0
+	if d.length() > 0.05:
+		facing = d.normalized()
+
+
+## O corpo gira suave até a direção de `facing` (a lógica do golpe usa
+## `facing` na hora; só o desenho acompanha em poucos centésimos).
+func _turn_visual(delta: float) -> void:
+	if visual == null:
+		return
+	var target := atan2(-facing.x, -facing.z)
+	_visual_yaw = lerp_angle(_visual_yaw, target, 1.0 - exp(-TURN_RATE * delta))
+	visual.rotation.y = _visual_yaw
 
 
 ## Ganchos para o Fênix planar.
@@ -275,7 +309,14 @@ func _process_player(_delta: float) -> Vector3:
 	aim_target = Game.aim_target(self, AIM_RANGE)
 	if aim_target != null:
 		aim = aim_target.global_position
-	face_towards(aim)
+	# Corpo olha para onde anda; ao atacar ou usar habilidade, vira para o alvo
+	# e fica assim um instante (o golpe sai na direção certa).
+	if _is_acting_input():
+		aim_hold = AIM_HOLD
+	if aim_hold > 0.0:
+		face_towards(aim)
+	elif move.length() > 0.1:
+		face_towards(global_position + move)
 
 	if Input.is_action_just_pressed("jump"):
 		jump()
@@ -290,6 +331,12 @@ func _process_player(_delta: float) -> Vector3:
 			Game.message("Especial ainda não está cheio (%d/%d)." % [int(special), int(stats.special_max)], 1.5)
 	_player_actions(aim, move)
 	return move
+
+
+## Botões de ataque e habilidade (segurar o ataque conta como atacando).
+func _is_acting_input() -> bool:
+	return Input.is_action_pressed("attack") or Input.is_action_pressed("ability_1") \
+			or Input.is_action_just_pressed("ability_2") or Input.is_action_just_pressed("special")
 
 
 ## Cada herói trata o básico e as habilidades aqui.
@@ -322,6 +369,8 @@ func try_dash(move: Vector3) -> void:
 		dir = facing
 	dir.y = 0.0
 	dir = dir.normalized()
+	if aim_hold <= 0.0:
+		facing = dir
 	# O dash para na beirada: não atravessa vãos (isso é do planar).
 	var dist := stats.dash_distance
 	var step := 0.25
