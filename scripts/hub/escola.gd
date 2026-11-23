@@ -22,6 +22,9 @@ var outside_door_spot := Vector3(0, 0, 10)
 var _floor_mat: Material
 var _lamp_scale := 1.0
 var _lab_door: Door
+## Parede da frente das salas laterais: {rect, mat} (some com o grupo dentro).
+var _frentes: Array[Dictionary] = []
+var _porta_oficiais: Array = []
 
 
 func build() -> void:
@@ -48,6 +51,7 @@ func build() -> void:
 		w["color"] = c
 		(w["mat"] as StandardMaterial3D).albedo_color = c
 	Game.chests_total = 0
+	_build_paredes_laterais()
 
 
 func rescued_count() -> int:
@@ -62,6 +66,7 @@ func _build_frente() -> void:
 	# Caminho de cimento rachado até a porta.
 	_box_visual_mat(Vector3(0, 0.01, 16), Vector3(4, 0.02, 16), Look.tiles({"tile_a": Color(0.5, 0.49, 0.45), "tile_b": Color(0.46, 0.45, 0.42), "tile_size": 1.0, "grass_amount": 0.3}))
 	_build_fachada()
+	_build_limites_frente()
 	Look.tree(self, Vector3(-15, 0, 12), 1.3, 1)
 	Look.tree(self, Vector3(16, 0, 11), 1.1, 2)
 	Look.tree(self, Vector3(-11, 0, 21), 0.9, 3)
@@ -80,6 +85,30 @@ func _build_frente() -> void:
 	porta.used_door.connect(_move_party)
 	_label("Frente da escola", Vector3(-5, 0, 22.5))
 	_hint(Rect2(-20, 8, 40, 16), "A escola. A sala de planos fica lá dentro, no fundo do saguão. Use F na porta.")
+
+
+## Limites do pátio: a fachada e a estrutura em volta só eram desenho, sem colisão,
+## e o grupo atravessava a escola. Agora seguram o grupo dentro do pátio.
+func _build_limites_frente() -> void:
+	# Fachada: parede sólida atrás das janelas e da porta.
+	_invisible_wall(Vector3(0, 4.0, 7.0), Vector3(40.0, 8.0, 1.8))
+	# Laterais e frente (a mureta em corte já desenhada pela estrutura).
+	_invisible_wall(Vector3(-20.2, 1.5, 16.0), Vector3(0.4, 3.0, 16.0))
+	_invisible_wall(Vector3(20.2, 1.5, 16.0), Vector3(0.4, 3.0, 16.0))
+	_invisible_wall(Vector3(0, 1.5, 24.2), Vector3(40.8, 3.0, 0.4))
+
+
+func _invisible_wall(center: Vector3, size: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.collision_layer = Game.LAYER_WORLD
+	body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	shape.shape = box
+	body.add_child(shape)
+	body.position = center
+	add_child(body)
 
 
 ## Fachada de dois andares (só visual, na frente da estrutura do fundo).
@@ -121,10 +150,35 @@ func _build_saguao() -> void:
 	_link(x0 - 1, -3.5, x0, -0.5)
 	_link(x1, -3.5, x1 + 1, -0.5)
 	_label("Saguão", Vector3(IN_X, 0, 3))
+	# Pé-direito duplo: as paredes do saguão sobem inteiras até o 2º andar,
+	# para não se ver as salas vizinhas por cima delas.
+	var tall := Look.brick({"moss_amount": 0.25})
+	var top_h := 7.5
+	var up := top_h - WALL_H
+	_solid_piece(Vector3(x0 - WALL_T * 0.5, WALL_H + up * 0.5, -5.0), Vector3(WALL_T, up, 18.0 + 2.0 * WALL_T), tall)
+	_solid_piece(Vector3(x1 + WALL_T * 0.5, WALL_H + up * 0.5, -5.0), Vector3(WALL_T, up, 18.0 + 2.0 * WALL_T), tall)
+	var n_wall: Array = []
+	n_wall.append(Look.piece(self, Look.box(Vector3(16.0 + 2.0 * WALL_T, up, WALL_T)), tall, Vector3(IN_X, WALL_H + up * 0.5, -14.0 - WALL_T * 0.5)))
+	# Paredes laterais (saguão | laboratório e saguão | treino): o trecho da
+	# frente, que o corte deixava baixo, sobe inteiro, e as portas ganham
+	# parede por cima, para não se ver as salas vizinhas pelos vãos.
+	for wx in [x0 - WALL_T * 0.5 - 0.25, x1 + WALL_T * 0.5 + 0.25]:
+		Look.piece(self, Look.box(Vector3(1.0, top_h, 5.0)), tall, Vector3(wx, top_h * 0.5, 2.0))
+		Look.piece(self, Look.box(Vector3(1.0, top_h - WALL_H, 3.0)), tall, Vector3(wx, WALL_H + (top_h - WALL_H) * 0.5, -2.0))
+	# A parede de baixo entre o saguão e a sala dos oficiais (com a porta).
+	var seg := (16.0 + 2.0 * WALL_T - 2.0) * 0.5
+	for sx in [-1.0, 1.0]:
+		n_wall.append(Look.piece(self, Look.box(Vector3(seg, WALL_H, WALL_T)), tall, Vector3(IN_X + sx * (1.0 + seg * 0.5), WALL_H * 0.5, -14.0 - WALL_T * 0.5)))
+	# Rodapé de madeira na altura do mezanino.
+	for wx in [x0 + 0.02, x1 - 0.02]:
+		Look.piece(self, Look.box(Vector3(0.06, 0.2, 18.0)), Look.wood(Color(0.3, 0.2, 0.14)), Vector3(wx, MEZ_Y + 0.1, -5.0))
 	var wood := Look.wood()
 	var dark_wood := Look.wood(Color(0.3, 0.2, 0.14))
 	# Sala de planos fechada, atrás da porta dos oficiais no fundo do saguão.
 	_build_sala_planos()
+	# Dentro da sala dos oficiais, essa parede e a porta somem (ficam entre a
+	# câmera e o herói).
+	_frentes.append({"rect": Rect2(74, -24, 12, 9.5), "nodes": n_wall + _porta_oficiais, "faded": false})
 	# Mezanino a 3,5 m: fundo e laterais, com guarda-corpo.
 	var slab := Look.surface(Color(0.45, 0.44, 0.41), {"outline": 0.04, "moss_amount": 0.3})
 	_solid_piece(Vector3(x0 + 1.25, MEZ_Y - 0.15, -5.0), Vector3(2.5, 0.3, 18.0), slab)
@@ -142,6 +196,20 @@ func _build_saguao() -> void:
 	# Passarela quebrada sobre o saguão: vão de 4 m, só planando.
 	_solid_piece(Vector3(x0 + 4.25, MEZ_Y - 0.1, -2.0), Vector3(3.5, 0.2, 1.6), dark_wood)
 	_solid_piece(Vector3(x1 - 4.25, MEZ_Y - 0.1, -2.0), Vector3(3.5, 0.2, 1.6), dark_wood)
+	# Apoios: viga presa ao mezanino, escora diagonal e pontas lascadas no vão.
+	for side in [-1.0, 1.0]:
+		var edge: float = IN_X + side * 5.5  # borda interna do mezanino
+		var tip: float = IN_X + side * 2.0   # ponta da tábua, no vão
+		Look.piece(self, Look.box(Vector3(3.6, 0.18, 0.2)), wood, Vector3((edge + tip) * 0.5, MEZ_Y - 0.29, -2.55))
+		Look.piece(self, Look.box(Vector3(3.6, 0.18, 0.2)), wood, Vector3((edge + tip) * 0.5, MEZ_Y - 0.29, -1.45))
+		# Dois pontaletes até o chão e uma travessa em X entre eles.
+		var post_x: float = tip - side * 0.5
+		for pz in [-2.6, -1.4]:
+			_solid_piece(Vector3(post_x, (MEZ_Y - 0.38) * 0.5, pz), Vector3(0.2, MEZ_Y - 0.38, 0.2), wood)
+		Look.piece(self, Look.box(Vector3(0.08, 3.4, 0.1)), wood, Vector3(post_x, MEZ_Y * 0.5 - 0.2, -2.0), Vector3(20.0, 0, 0))
+		Look.piece(self, Look.box(Vector3(0.08, 3.4, 0.1)), wood, Vector3(post_x, MEZ_Y * 0.5 - 0.2, -2.0), Vector3(-20.0, 0, 0))
+		Look.piece(self, Look.box(Vector3(0.7, 0.06, 0.3)), dark_wood, Vector3(tip - side * 0.1, MEZ_Y - 0.25, -2.4), Vector3(0, side * 12.0, side * -24.0))
+		Look.piece(self, Look.box(Vector3(0.5, 0.06, 0.26)), dark_wood, Vector3(tip - side * 0.05, MEZ_Y - 0.2, -1.6), Vector3(0, side * -8.0, side * -32.0))
 	# Caixas para treinar o pulo (1 m e 2 m).
 	var crate := Look.wood(Color(0.45, 0.34, 0.22))
 	_solid_piece(Vector3(x1 - 3.5, 0.5, 1.0), Vector3(1.6, 1.0, 1.6), crate)
@@ -171,11 +239,11 @@ func _build_sala_planos() -> void:
 	_link(IN_X - 1.0, z1, IN_X + 1.0, -14.0)
 	# Porta reforçada com placa.
 	var metal := Look.surface(Color(0.24, 0.27, 0.3), {"outline": 0.03, "variation": 0.2})
-	Look.piece(self, Look.box(Vector3(0.25, 2.6, 0.7)), metal, Vector3(IN_X - 1.15, 1.3, -14.25))
-	Look.piece(self, Look.box(Vector3(0.25, 2.6, 0.7)), metal, Vector3(IN_X + 1.15, 1.3, -14.25))
-	Look.piece(self, Look.box(Vector3(2.55, 0.3, 0.7)), metal, Vector3(IN_X, 2.65, -14.25))
-	Look.piece(self, Look.box(Vector3(1.0, 2.3, 0.08)), metal, Vector3(IN_X - 1.45, 1.15, -13.7), Vector3(0, -70, 0))
-	Look.piece(self, Look.box(Vector3(1.9, 0.45, 0.06)), Look.surface(Color(0.6, 0.12, 0.1), {"outline": 0.015}), Vector3(IN_X, 3.15, -13.9))
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(0.25, 2.6, 0.7)), metal, Vector3(IN_X - 1.15, 1.3, -14.25)))
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(0.25, 2.6, 0.7)), metal, Vector3(IN_X + 1.15, 1.3, -14.25)))
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(2.55, 0.3, 0.7)), metal, Vector3(IN_X, 2.65, -14.25)))
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(1.0, 2.3, 0.08)), metal, Vector3(IN_X - 1.45, 1.15, -13.7), Vector3(0, -70, 0)))
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(1.9, 0.45, 0.06)), Look.surface(Color(0.6, 0.12, 0.1), {"outline": 0.015}), Vector3(IN_X, 3.15, -13.9)))
 	var sign := Label3D.new()
 	sign.text = "SALA DOS OFICIAIS"
 	sign.font_size = 40
@@ -184,7 +252,8 @@ func _build_sala_planos() -> void:
 	sign.modulate = Color(1.0, 0.92, 0.8)
 	sign.position = Vector3(IN_X, 3.15, -13.86)
 	add_child(sign)
-	Look.piece(self, Look.box(Vector3(0.18, 0.28, 0.05)), Look.glow(Color(0.3, 1.0, 0.45), 1.6), Vector3(IN_X + 1.5, 1.3, -13.88))
+	_porta_oficiais.append(sign)
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(0.18, 0.28, 0.05)), Look.glow(Color(0.3, 1.0, 0.45), 1.6), Vector3(IN_X + 1.5, 1.3, -13.88)))
 	# Mesa do mapa no centro.
 	_build_mesa(Vector3(IN_X, 0.0, -19.5))
 	# Quadro de cortiça com fotos e fios, armários e arquivos.
@@ -318,6 +387,34 @@ func _build_treino() -> void:
 	Look.piece(self, Look.box(Vector3(0.15, 3.5, 0.15)), metal, Vector3(96.5, 1.75, -13.2))
 	Look.piece(self, Look.box(Vector3(1.8, 1.1, 0.08)), Look.surface(Color(0.75, 0.73, 0.68), {"outline": 0.03}), Vector3(96.5, 3.4, -12.9), Vector3(0, 0, 7))
 	_hint(Rect2(89, -4, 3, 4), "O ginásio está cheio de entulho. Um mutante forte poderia liberar o treino.")
+
+
+# ================================================================ salas laterais
+
+## Laboratório e treino têm a parede da frente inteira (dois andares), para não
+## se ver dentro deles do saguão. Com o grupo dentro, a parede fica transparente.
+func _build_paredes_laterais() -> void:
+	var h := 8.0
+	for r in [Rect2(56, -14, 15, 18), Rect2(89, -14, 15, 18)]:
+		var mat := Look.brick({"moss_amount": 0.5})
+		var size := Vector3(r.size.x + 2.0 * WALL_T, h, 0.5)
+		var c := Vector3(r.get_center().x, h * 0.5, r.end.y + 0.25)
+		var mi := Look.piece(self, Look.box(size), mat, c)
+		# Faixa escura no topo, como o resto da estrutura.
+		var cap := StandardMaterial3D.new()
+		cap.albedo_color = Color(0.14, 0.15, 0.17)
+		var top := Look.piece(self, Look.box(Vector3(size.x, 0.05, size.z)), cap, c + Vector3(0, h * 0.5 + 0.02, 0))
+		_frentes.append({"rect": r, "nodes": [mi, top], "faded": false})
+
+
+func _update_paredes_laterais(pos: Vector3) -> void:
+	var p := Vector2(pos.x, pos.z)
+	for f in _frentes:
+		var inside: bool = (f["rect"] as Rect2).grow(0.2).has_point(p)
+		if inside != f["faded"]:
+			f["faded"] = inside
+			for n in f["nodes"]:
+				(n as Node3D).visible = not inside
 
 
 # ================================================================ peças do hub
@@ -496,3 +593,4 @@ func _physics_process(_delta: float) -> void:
 	var hero: Hero = party.controlled_hero
 	_update_wall_fade(hero.global_position)
 	_update_hints(hero.global_position)
+	_update_paredes_laterais(hero.global_position)
