@@ -103,6 +103,8 @@ func claw_attack() -> bool:
 				"strength": Impact.STRONG if finisher else Impact.WEAK,
 				"dir": facing,
 				"ability": false,
+				"melee": true,
+				"combo": step,
 			}
 			deal_damage(enemy, dmg, info)
 			hit_any = true

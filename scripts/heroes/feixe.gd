@@ -4,8 +4,12 @@ extends Hero
 ## feixe-laser-drone-v2): Raio Laser, Raio Forte, Cone de Raios e Suprema
 ## em Círculo. Cada disparo solta um clarão estrelado do rosto.
 
-## Invulnerável por este tempo ao disparar a Suprema.
-const BLAST_INVULNERABLE := 0.35
+## Tempo da volta inteira do raio da Suprema (sentido horário).
+const SWEEP_TIME := 1.2
+## Recuo enquanto segura o Raio Forte: cerca de 1 m em 3 s.
+const LASER_RECOIL_SPEED := 0.33
+## Tempo para o Raio Forte nascer fino e chegar à largura cheia.
+const LASER_GROW_TIME := 0.15
 ## Tolerância de altura entre o raio e o centro do corpo do inimigo (m).
 const BEAM_HEIGHT_TOLERANCE := 1.1
 ## Malha do Feixe (óculos de laser) no mesmo esqueleto e animações do Fênix.
@@ -17,6 +21,17 @@ var _laser_tick: float = 0.0
 var _laser_ai_limit: float = 0.0
 var _laser_meshes: Array[MeshInstance3D] = []
 var _laser_flare: Sprite3D
+var _laser_fx: FeixeFX
+## Varredura da Suprema em andamento.
+var _sweep_time: float = -1.0
+var _sweep_yaw0: float = 0.0
+var _sweep_hit: Array = []
+var _sweep_meshes: Array[MeshInstance3D] = []
+var _sweep_flare: Sprite3D
+var _sweep_fx: FeixeFX
+## Mão na têmpora (Raio Forte e Suprema).
+var temple: TempleOverride
+var _temple_target: float = 0.0
 var _ai_target: Actor = null
 var model: FenixModel
 
@@ -42,10 +57,18 @@ func _use_model() -> void:
 	model.scene = MODEL
 	model.hero = self
 	visual.add_child(model)
+	var found := model.find_children("*", "Skeleton3D", true, false)
+	if not found.is_empty():
+		temple = TempleOverride.new()
+		(found.front() as Skeleton3D).add_child(temple)
+		temple.setup(found.front() as Skeleton3D)
 
 
 func _physics_process(delta: float) -> void:
 	super._physics_process(delta)
+	if temple != null:
+		var want := _temple_target if not is_dead else 0.0
+		temple.weight = move_toward(temple.weight, want, delta * 7.0)
 	if _laser_active:
 		if is_dead or not in_party:
 			stop_laser()
@@ -164,6 +187,7 @@ func optic_shot() -> bool:
 		deal_damage(v, s.shot_damage, {"strength": Impact.WEAK, "dir": dir, "ability": false})
 	Game.laser_beam(from, to, 0.05, 0.2, 0.1)
 	Game.laser_flare(from, 0.9, 0.1)
+	FeixeFX.shot(from, to)
 	_anim("Spell_Simple_Shoot", 2.0)
 	return true
 
@@ -182,7 +206,9 @@ func start_laser(ai_limit: float) -> bool:
 	var from := _muzzle()
 	_laser_meshes = Game.laser_beam(from, from + facing, 0.16, 0.7, 0.0)
 	_laser_flare = Game.laser_flare(from, 1.7, 0.0)
-	_anim("Spell_Simple_Shoot", 0.8)
+	_laser_fx = FeixeFX.beam(self)
+	_laser_fx.update_beam(from, from + facing * 0.1, global_position, 0.3)
+	_temple_target = 1.0
 	return true
 
 
@@ -198,6 +224,11 @@ func stop_laser() -> void:
 	if is_instance_valid(_laser_flare):
 		_laser_flare.queue_free()
 	_laser_flare = null
+	if is_instance_valid(_laser_fx):
+		_laser_fx.stop()
+	_laser_fx = null
+	if _sweep_time < 0.0:
+		_temple_target = 0.0
 	start_cooldown("q", _fb().q_cooldown)
 
 
@@ -218,15 +249,23 @@ func _tick_laser(delta: float) -> void:
 	if _laser_time >= limit:
 		stop_laser()
 		return
+	# Tranco do raio: escorrega um pouco para trás (para nas paredes).
+	if not busy and is_on_floor():
+		move_and_collide(-facing * LASER_RECOIL_SPEED * delta)
 	var from := _muzzle()
 	var to := _beam_end(from, s.laser_range)
 	_cut_blast_doors(from, to, delta)
 	_hit_switches(from, to)
-	# Visual: raio grosso e clarão maior, fixos no rosto.
-	var widths: Array[float] = [0.7, 0.16]
+	# Visual: nasce fino e curto e chega à largura cheia; depois pulsa de leve.
+	var grow := clampf(_laser_time / LASER_GROW_TIME, 0.0, 1.0)
+	var pulse := 1.0 + 0.08 * sin(_laser_time * 35.0)
+	var shown := from.lerp(to, grow)
+	var widths: Array[float] = [0.7 * grow * pulse, 0.16 * maxf(grow, 0.4)]
 	for i in _laser_meshes.size():
 		if is_instance_valid(_laser_meshes[i]):
-			Game.place_beam(_laser_meshes[i], from, to, widths[i])
+			Game.place_beam(_laser_meshes[i], from, shown, widths[i])
+	if is_instance_valid(_laser_fx):
+		_laser_fx.update_beam(from, shown, global_position, grow)
 	if is_instance_valid(_laser_flare):
 		_laser_flare.global_position = from
 		_laser_flare.scale = Vector3.ONE * (1.0 + 0.12 * sin(_laser_time * 40.0))
@@ -263,14 +302,9 @@ func repulsion_pulse() -> bool:
 	start_cooldown("e", s.e_cooldown)
 	ability_lock = 0.25
 	var from := _muzzle()
-	Game.flash_cone(global_position, facing, s.pulse_range, s.pulse_arc_degrees, Color(1.0, 0.2, 0.15, 0.35), 0.3)
-	# Leque de 5 raios.
-	var half := deg_to_rad(s.pulse_arc_degrees) * 0.5
-	for i in 5:
-		var ang := -half + 2.0 * half * float(i) / 4.0
-		var d := facing.rotated(Vector3.UP, ang)
-		Game.laser_beam(from, from + d * s.pulse_range, 0.07, 0.3, 0.25)
-	Game.laser_flare(from, 1.3, 0.15)
+	FeixeFX.cone(self, from, facing, s.pulse_range, s.pulse_arc_degrees)
+	Game.laser_flare(from, 1.6, 0.25)
+	Game.shake(0.12, 0.2)
 	_anim("Punch_Cross", 1.6)
 	for e in Game.living_enemies():
 		var enemy := e as Actor
@@ -284,36 +318,96 @@ func repulsion_pulse() -> bool:
 
 # ---------------------------------------------------------------- R: Suprema em Círculo
 
-## Explosão de raios em volta do Feixe, grande o bastante para pegar a sala.
+## Mão na têmpora, um raio de 14 m corre em volta no sentido horário e o
+## corpo vira junto: a volta inteira em SWEEP_TIME s. Cada inimigo no alcance
+## leva o dano quando o raio passa por ele; o chão fica vermelho e apaga.
 func use_special(_aim: Vector3) -> bool:
-	var s := _fb()
-	var center := global_position
-	var from := _muzzle() - facing * 0.5
-	Game.flash_ring(center, s.blast_radius, Color(1.0, 0.2, 0.15, 0.45), 0.5)
-	Game.flash_ring(center, s.blast_radius * 0.5, Color(1.0, 0.45, 0.35, 0.6), 0.35)
-	for i in 16:
-		var d := Vector3.FORWARD.rotated(Vector3.UP, TAU * float(i) / 16.0)
-		var to := from + d * s.blast_radius
-		var hit := Game.raycast_world(from, to)
-		if not hit.is_empty():
-			to = hit["position"]
-		Game.laser_beam(from, to, 0.08, 0.35, 0.4)
-	Game.laser_flare(from, 3.0, 0.35)
-	_anim("Spell_Simple_Shoot", 1.2)
-	# Invulnerável por um instante enquanto dispara.
+	if _sweep_time >= 0.0:
+		return false
+	stop_laser()
+	busy = true
 	invulnerable = true
-	get_tree().create_timer(BLAST_INVULNERABLE).timeout.connect(_end_blast_invulnerability)
-	for e in Game.living_enemies():
-		var enemy := e as Actor
-		if Game.flat_distance(enemy.global_position, center) <= s.blast_radius + enemy.body_radius \
-				and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
-			deal_damage(enemy, s.blast_damage, {"strength": Impact.SPECIAL, "ability": true, "color": Color(1, 0.3, 0.3)})
+	velocity = Vector3.ZERO
+	ability_lock = SWEEP_TIME + 0.1
+	_sweep_time = 0.0
+	_sweep_yaw0 = atan2(-facing.x, -facing.z)
+	_visual_yaw = _sweep_yaw0
+	_sweep_hit.clear()
+	_temple_target = 1.0
+	var from := _muzzle()
+	_sweep_meshes = Game.laser_beam(from, from + facing, 0.22, 0.85, 0.0)
+	_sweep_flare = Game.laser_flare(from, 2.2, 0.0)
+	_sweep_fx = FeixeFX.sweep(self, _fb().blast_radius)
+	Game.laser_flare(from, 3.0, 0.3)
 	return true
 
 
-func _end_blast_invulnerability() -> void:
-	if _dash_time_left <= 0.0 and not busy:
+func _process_busy(delta: float) -> void:
+	if _sweep_time >= 0.0:
+		_tick_sweep(delta)
+
+
+func _tick_sweep(delta: float) -> void:
+	var s := _fb()
+	_sweep_time += delta
+	var k := clampf(_sweep_time / SWEEP_TIME, 0.0, 1.0)
+	# Começa e termina um pouco mais devagar; horário visto de cima = yaw caindo.
+	var turned := TAU * (k - sin(TAU * k) * 0.06)
+	var yaw := _sweep_yaw0 - turned
+	facing = Vector3(-sin(yaw), 0.0, -cos(yaw))
+	_visual_yaw = yaw
+	visual.rotation.y = yaw
+	var from := _muzzle()
+	var to := from + facing * s.blast_radius
+	var hit := Game.raycast_world(from, to)
+	if not hit.is_empty():
+		to = hit["position"]
+	var widths: Array[float] = [0.85 * (1.0 + 0.08 * sin(_sweep_time * 40.0)), 0.22]
+	for i in _sweep_meshes.size():
+		if is_instance_valid(_sweep_meshes[i]):
+			Game.place_beam(_sweep_meshes[i], from, to, widths[i])
+	if is_instance_valid(_sweep_flare):
+		_sweep_flare.global_position = from
+	if is_instance_valid(_sweep_fx):
+		_sweep_fx.sweep_to(from, to, yaw, global_position)
+	Game.shake(0.06, 0.1)
+	# Dano em quem o raio já alcançou nesta volta (mesmo alcance de antes).
+	for e in Game.living_enemies():
+		var enemy := e as Actor
+		if enemy in _sweep_hit:
+			continue
+		if Game.flat_distance(enemy.global_position, global_position) > s.blast_radius + enemy.body_radius \
+				or not Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
+			continue
+		var d := enemy.global_position - global_position
+		var enemy_yaw := atan2(-d.x, -d.z)
+		if fposmod(_sweep_yaw0 - enemy_yaw, TAU) <= turned + 0.05 or k >= 1.0:
+			_sweep_hit.append(enemy)
+			d.y = 0.0
+			deal_damage(enemy, s.blast_damage, {"strength": Impact.SPECIAL, "ability": true, "dir": d, "color": Color(1, 0.3, 0.3)})
+	if k >= 1.0:
+		_end_sweep()
+
+
+func _end_sweep() -> void:
+	_sweep_time = -1.0
+	busy = false
+	_temple_target = 0.0
+	if _dash_time_left <= 0.0:
 		invulnerable = false
+	for m in _sweep_meshes:
+		if is_instance_valid(m):
+			var mat := m.material_override as StandardMaterial3D
+			var tw := m.create_tween()
+			tw.tween_property(mat, "albedo_color:a", 0.0, 0.15)
+			tw.tween_callback(m.queue_free)
+	_sweep_meshes.clear()
+	if is_instance_valid(_sweep_flare):
+		_sweep_flare.queue_free()
+	_sweep_flare = null
+	if is_instance_valid(_sweep_fx):
+		_sweep_fx.end_sweep()
+	_sweep_fx = null
 
 
 func _on_interrupted() -> void:

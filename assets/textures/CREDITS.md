@@ -27,4 +27,5 @@ Cada pasta tem só a cor (`_color.jpg`) e o normal no padrão OpenGL (`_normal.j
 | `Concrete046/` | Concrete 046 | https://ambientcg.com/a/Concrete046 | Fase: piso do hangar |
 | `DiamondPlate008A/` | Diamond Plate 008 A | https://ambientcg.com/a/DiamondPlate008A | Fase: plataformas, passarela do hangar e piso do cofre |
 | `PaintedMetal016/` | Painted Metal 016 | https://ambientcg.com/a/PaintedMetal016 | Fase: faixa de aviso amarela e preta nas bordas das plataformas e porta de serviço |
-| `MetalPlates014/` | Metal Plates 014 | https://ambientcg.com/a/MetalPlates014 | Hub: bancadas do laboratório · Fase: grade da cela, sala secreta, caixotes e portas blindadas |
+| `MetalPlates014/` | Metal Plates 014 | https://ambientcg.com/a/MetalPlates014 | Hub: bancadas do laboratório · Fase: grade da cela, sala secreta, caixotes, portas blindadas e ferragens dos baús |
+| `Planks037A/` | Planks 037 A | https://ambientcg.com/a/Planks037A | Fase: madeira dos baús |

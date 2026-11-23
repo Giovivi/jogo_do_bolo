@@ -462,7 +462,7 @@ static func wings(hero: Node3D, facing: Vector3, length: float, arc_degrees: flo
 			elif t < 0.3:
 				var k := (t - 0.14) / 0.16
 				p.scale = Vector3.ONE * 1.15
-				p.rotation = Vector3(lerpf(0.0, -0.3, k), -side * lerpf(0.0, 1.05, k * k), side * lerpf(0.85, 0.2, k))
+				p.rotation = Vector3(lerpf(0.0, 0.1, k), -side * lerpf(0.0, 1.05, k * k), side * lerpf(0.85, 0.35, k))
 			else:
 				var k := clampf((t - 0.3) / 0.35, 0.0, 1.0)
 				p.scale = Vector3.ONE * lerpf(1.15, 0.01, k)
@@ -474,35 +474,68 @@ static func wings(hero: Node3D, facing: Vector3, length: float, arc_degrees: flo
 
 
 func _cone_burst(length: float, arc_degrees: float) -> void:
-	# coordenadas do mundo, com a frente do efeito (-Z)
+	# A frente do efeito é -Z. As chamas saem retas, na horizontal, na altura
+	# do peito, e enchem o cone inteiro até o alcance do golpe.
 	var fwd := -global_transform.basis.z
-	for ramp_size in [[BLUE_RAMP, 150, 1.3], [GOLD_RAMP, 60, 1.0]]:
-		var p := _particles(ramp_size[1], 0.55, ramp_size[2], true, ramp_size[0])
-		p.global_position = global_position + Vector3(0, 0.9, 0) + fwd * 0.4
-		var pm := p.process_material as ParticleProcessMaterial
-		pm.emission_sphere_radius = 0.4
-		pm.direction = fwd
-		pm.spread = arc_degrees * 0.5
-		pm.flatness = 0.7
-		# para perto do fim do cone
-		pm.initial_velocity_min = length * 1.6
-		pm.initial_velocity_max = length * 2.6
-		pm.damping_min = length * 2.2
-		pm.damping_max = length * 3.0
-		pm.gravity = Vector3(0, 1.5, 0)
-		p.one_shot = true
-		p.explosiveness = 0.85
-		p.emitting = true
+	var half := deg_to_rad(arc_degrees) * 0.5
+	Game.flash_cone(global_position, fwd, length, arc_degrees, Color(0.25, 0.55, 1.0, 0.35), 0.45)
+	# línguas de fogo deitadas, da mão até o fim do cone
+	var jets := Node3D.new()
+	add_child(jets)
+	jets.top_level = true
+	jets.global_transform = Transform3D(global_transform.basis.orthonormalized(), global_position + Vector3(0, 0.95, 0))
+	var n := 15
+	var width := 2.0 * length * tan(half) / float(n) * 2.2
+	for i in n:
+		var u := (float(i) + randf_range(-0.3, 0.3)) / float(n - 1)
+		var ang := lerpf(-half, half, u)
+		var ln := length * randf_range(0.85, 1.05) * (1.0 - 0.15 * absf(u * 2.0 - 1.0))
+		jets.add_child(_jet(ang, ln, width * randf_range(0.8, 1.2), BLUE, randf_range(-0.12, 0.08)))
+	for i in 7:
+		var ang := lerpf(-half * 0.7, half * 0.7, float(i) / 6.0)
+		jets.add_child(_jet(ang, length * randf_range(0.45, 0.65), width * 0.8, GOLD, randf_range(-0.05, 0.12)))
+	var tw := jets.create_tween()
+	tw.tween_interval(0.7)
+	tw.tween_callback(jets.queue_free)
+	# fogo solto espalhado pelo cone (sem amontoar tudo na mão)
+	var fill := _particles(120, 0.5, 1.1, true, BLUE_RAMP)
+	(fill.process_material as ParticleProcessMaterial).gravity = Vector3(0, 1.2, 0)
+	var flags := GPUParticles3D.EMIT_FLAG_POSITION | GPUParticles3D.EMIT_FLAG_VELOCITY
+	for i in 90:
+		var ang := randf_range(-half, half)
+		var r := lerpf(0.8, length, sqrt(randf()))
+		var d := fwd.rotated(Vector3.UP, ang)
+		var pos := global_position + d * r + Vector3(0, randf_range(0.5, 1.3), 0)
+		fill.emit_particle(Transform3D(Basis(), pos), d * randf_range(2.0, 4.0), Color.WHITE, Color.WHITE, flags)
 	var s := _sparks(90, 1.0)
 	s.global_position = global_position + Vector3(0, 1.0, 0)
 	var sm := s.process_material as ParticleProcessMaterial
 	sm.direction = fwd
 	sm.spread = arc_degrees * 0.5
-	sm.initial_velocity_min = 5.0
-	sm.initial_velocity_max = 11.0
+	sm.flatness = 0.8
+	sm.initial_velocity_min = length * 1.0
+	sm.initial_velocity_max = length * 2.0
 	s.one_shot = true
 	s.explosiveness = 0.9
 	s.emitting = true
+
+
+## Língua de fogo deitada (virada para cima), apontando para `ang` a partir da
+## frente (-Z): cresce rápido até `length` e depois some.
+func _jet(ang: float, length: float, width: float, color: Color, tilt: float) -> Node3D:
+	var pivot := Node3D.new()
+	pivot.rotation = Vector3(tilt * 0.3, ang, 0)
+	var card := _feather(length, width, color)
+	# a pena nasce com a ponta em +Y; deitada, a ponta vai para a frente (-Z)
+	card.rotation = Vector3(deg_to_rad(-90.0), 0, 0)
+	card.scale = Vector3(1, 0.15, 1)
+	pivot.add_child(card)
+	var mat := card.material_override as StandardMaterial3D
+	var tw := card.create_tween()
+	tw.tween_property(card, "scale:y", 1.0, 0.16).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_interval(0.12)
+	tw.tween_property(mat, "albedo_color:a", 0.0, 0.35)
+	return pivot
 
 
 # ================================================================ peças

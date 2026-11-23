@@ -3,8 +3,10 @@ extends Node3D
 ## Fase-piloto "Posto Vigia-01" em greybox, montada por código.
 ## Grade de 2 m, paredes de 3 m. Coordenadas: x = leste, z = sul (metros).
 ##
-## Ida (linha de cima):  1. Entrada -> 2. Triagem -> 3. Celas -> 4. Hangar
-## Volta (linha de baixo): porta de serviço -> Corredor -> Cofre -> 5. Saída
+## Planta em anel (a câmera olha para o norte, de baixo para cima na tela):
+## Ida (linha de baixo):  1. Entrada -> 2. Triagem -> 3. Celas -> 4. Hangar
+## Volta (linha de cima): porta de serviço -> Depósito -> Cofre -> 5. Saída
+## A volta fica ao norte da ida, nunca entre a câmera e o herói.
 
 signal feixe_rescued
 signal run_completed
@@ -13,6 +15,8 @@ const WALL_H := 3.0
 const WALL_T := 0.5
 const FADE_RADIUS := 6.0
 const GLASS_VISUAL_H := 1.0
+## Segundos de aviso antes de cada inimigo da onda da cela entrar.
+const WAVE_WARNING := 1.0
 
 const SOLDIER: EnemyStats = preload("res://data/soldado.tres")
 const SHIELD_SOLDIER: EnemyStats = preload("res://data/soldado_escudo.tres")
@@ -36,7 +40,7 @@ var _service_door: Door
 var _switch_on: bool = false
 var _blast_open: bool = false
 var _candidates_root: Node3D
-var _exit_rect := Rect2(-5, 23, 4, 4)
+var _exit_rect := Rect2(-5, -39, 4, 4)
 var _cell_timer: float = -1.0
 var _cell_events: Array[Dictionary] = []
 var _cell_done: bool = false
@@ -66,12 +70,13 @@ func _build_camera_zones() -> void:
 		return
 	CameraZone.make(root, -8, -8, 8, 8, CameraZone.Level.MEDIUM, "Entrada")
 	CameraZone.make(root, 20, -10, 40, 10, CameraZone.Level.OPEN, "Triagem")
-	CameraZone.make(root, 25, -26, 35, -18, CameraZone.Level.CLOSED, "Sala secreta")
+	CameraZone.make(root, 13, -28, 25, -18, CameraZone.Level.CLOSED, "Sala secreta")
 	CameraZone.make(root, 50, -10, 70, 10, CameraZone.Level.OPEN, "Celas")
 	CameraZone.make(root, 78, -12, 102, 12, CameraZone.Level.OPEN, "Hangar")
-	CameraZone.make(root, 36, 20, 92, 26, CameraZone.Level.CLOSED, "Corredor de servico")
-	CameraZone.make(root, 24, 16, 36, 28, CameraZone.Level.CLOSED, "Cofre")
-	CameraZone.make(root, -6, 16, 6, 28, CameraZone.Level.CLOSED, "Saida")
+	CameraZone.make(root, 96, -30, 102, -12, CameraZone.Level.CLOSED, "Servico")
+	CameraZone.make(root, 52, -34, 70, -16, CameraZone.Level.MEDIUM, "Deposito")
+	CameraZone.make(root, 26, -24, 36, -14, CameraZone.Level.CLOSED, "Cofre")
+	CameraZone.make(root, -6, -40, 6, -26, CameraZone.Level.CLOSED, "Saida")
 
 
 func build() -> void:
@@ -122,7 +127,8 @@ func _build_entrada() -> void:
 func _build_triagem() -> void:
 	var c := Color(0.4, 0.43, 0.5)
 	_floor_tex = ["Tiles140", 2.0, Color(1.1, 1.12, 1.18)]
-	_room(20, -10, 40, 10, c, {"W": [[0.0, 4.0]], "E": [[0.0, 4.0]], "N": [[30.0, 4.0]]}, {"S": [[30.0, 8.0]]})
+	# Fundo: porta da secreta (x 23) no mezanino e vidro que mostra o cofre (x 30).
+	_room(20, -10, 40, 10, c, {"W": [[0.0, 4.0]], "E": [[0.0, 4.0]], "N": [[23.0, 4.0]]}, {"N": [[30.0, 6.0]]})
 	# Níveis: mezanino de 1 m no fundo e plataforma de 2 m no canto
 	# nordeste (sobe pelo mezanino, degrau de 1 m), com baú no alto.
 	_platform(20, -10, 34, -6, 1.0)
@@ -137,7 +143,7 @@ func _build_triagem() -> void:
 	_enemy_group("Triagem B", SOLDIER, 2, [Vector3(37, 2, -7), Vector3(34, 0, 7)])
 	_enemy_group("Triagem C", SOLDIER, 2, [Vector3(31, 0, 6), Vector3(31, 1, -8)])
 	_enemy_group("Triagem drones", DRONE, 2, [Vector3(36, 0, 0), Vector3(30, 0, 2)])
-	_hint(Rect2(24, 4, 12, 6), "Atrás do vidro blindado, um cofre... A porta dele não abre por aqui.")
+	_hint(Rect2(26, -10, 8, 6), "Atrás do vidro blindado, um cofre... A porta dele não abre por aqui.")
 	_corridor_x(40, 50, 0.0, c)
 
 
@@ -145,14 +151,14 @@ func _build_secreta() -> void:
 	var c := Color(0.35, 0.33, 0.42)
 	_floor_tex = ["MetalPlates014", 1.6, Color(0.7, 0.72, 0.78)]
 	# Corredor norte com vão de 4 m.
-	_floor(28, -18, 32, -10, c)
-	_wall(28 - WALL_T, -18, 28, -10, WALL_H)
-	_wall(32, -18, 32 + WALL_T, -10, WALL_H)
-	_pit(28, -15, 32, -11)
-	_room(25, -26, 35, -18, c, {"S": [[30.0, 4.0]]})
-	_chest(Vector3(30, 0, -23))
-	_label("sala secreta", Vector3(30, 0, -20))
-	_hint(Rect2(28, -11, 4, 1.5), "Vão de 4 m: só o Fênix passa. Pule e segure Espaço para planar.")
+	_floor(21, -18, 25, -10, c)
+	_wall(21 - WALL_T, -18, 21, -10, WALL_H)
+	_wall(25, -18, 25 + WALL_T, -10, WALL_H)
+	_pit(21, -15, 25, -11)
+	_room(13, -28, 25, -18, c, {"S": [[23.0, 4.0]]})
+	_chest(Vector3(17, 0, -24))
+	_label("sala secreta", Vector3(19, 0, -20))
+	_hint(Rect2(21, -11, 4, 1.5), "Vão de 4 m: só o Fênix passa. Pule e segure Espaço para planar.")
 
 
 func _build_celas() -> void:
@@ -186,18 +192,18 @@ func _build_celas() -> void:
 func _build_hangar() -> void:
 	var c := Color(0.36, 0.38, 0.44)
 	_floor_tex = ["Concrete046", 3.0, Color(0.58, 0.58, 0.6)]
-	_room(78, -12, 102, 12, c, {"W": [[0.0, 4.0]], "S": [[90.0, 4.0]]})
+	_room(78, -12, 102, 12, c, {"W": [[0.0, 4.0]], "N": [[99.5, 4.0]]})
 	_label("4. Hangar", Vector3(90, 0, 10.5))
 	# Passarela alta (inalcançável a pé) com o interruptor.
-	var walkway := _box_body(Vector3(90, 1.5, -10.5), Vector3(24, 3, 3), Color(0.5, 0.52, 0.58), Game.LAYER_WALKWAY)
+	var walkway := _box_body(Vector3(88, 1.5, -10.5), Vector3(16, 3, 3), Color(0.5, 0.52, 0.58), Game.LAYER_WALKWAY)
 	walkway.name = "Passarela"
 	Look.texture_std(walkway.get_child(1).material_override, "DiamondPlate008A", 1.5, Color(0.62, 0.65, 0.7))
 	var sw := BeamSwitch.new()
-	sw.position = Vector3(90, 3.5, -10.5)
+	sw.position = Vector3(88, 3.5, -10.5)
 	add_child(sw)
 	var service := Door.new()
 	service.name = "PortaServico"
-	service.position = Vector3(90, 0, 12)
+	service.position = Vector3(99.5, 0, -12.25)
 	add_child(service)
 	service.setup(Vector3(4, WALL_H, 0.6), Color(0.75, 0.6, 0.2))
 	Look.texture_std(service._mat, "PaintedMetal016", 1.5)
@@ -219,7 +225,7 @@ func _on_switch_triggered() -> void:
 	_switch_on = true
 	if _service_door != null:
 		_service_door.open()
-	Game.message("A porta de serviço abriu (sul do hangar).", 3.0)
+	Game.message("A porta de serviço abriu (fundo do hangar).", 3.0)
 
 
 func _on_blast_door_opened() -> void:
@@ -230,38 +236,49 @@ func _on_blast_door_opened() -> void:
 func _build_volta() -> void:
 	var c := Color(0.34, 0.36, 0.38)
 	_floor_tex = CORRIDOR_TEX
-	# Corredor de serviço (sai do hangar para o sul).
-	_floor(88, 12, 92, 20, c)
-	_wall(88 - WALL_T, 12, 88, 20, WALL_H)
-	_wall(92, 12, 92 + WALL_T, 20, WALL_H)
-	# Corredor longo até o cofre (a parede oeste é a do cofre).
-	_room(36, 20, 92, 26, c, {"N": [[90.0, 4.0]]}, {}, ["W"])
-	_label("corredor", Vector3(64, 0, 24.5))
-	_enemy_group("Corredor", SOLDIER, 2, [Vector3(60, 0, 23), Vector3(70, 0, 23), Vector3(50, 0, 23)])
-	# Cofre blindado, visto pelo vidro da triagem.
+	# Serviço: sai do fundo do hangar e sobe (6 m de largura).
+	_room(96, -30, 102, -12, c, {"W": [[-25.0, 4.0]]}, {}, ["S"])
+	_corridor_x(70, 96, -25.0, c)
+	# Depósito: sala de luta da volta, com caixas de cobertura.
+	_floor_tex = ["Concrete046", 3.0, Color(0.62, 0.6, 0.56)]
+	_room(52, -34, 70, -16, Color(0.36, 0.35, 0.38), {"W": [[-19.0, 4.0]], "E": [[-25.0, 4.0]]})
+	_label("Depósito", Vector3(61, 0, -17.5))
+	_platform(64, -34, 70, -30, 1.0)
+	_crate(57, -25, 2, 2)
+	_crate(63, -22, 2, 1)
+	_crate(56, -30, 1, 2)
+	_chest(Vector3(67, 1, -32))
+	_enemy_group("Depósito A", SOLDIER, 2, [Vector3(58, 0, -29), Vector3(62, 0, -31)])
+	_enemy_group("Depósito escudo", SHIELD_SOLDIER, 1, [Vector3(56, 0, -20), Vector3(60, 0, -27)])
+	_corridor_x(36, 52, -19.0, c)
+	# Cofre blindado no fundo da triagem, visto pelo vidro dela.
 	var vc := Color(0.45, 0.42, 0.33)
-	# Fosso de serviço entre o vidro da triagem e o do cofre: fica aberto
-	# para o cofre aparecer, mas não é chão andável.
-	_open_rects.append(Rect2(26, 10, 8, 6))
-	_box_visual(Vector3(30, -0.6, 13), Vector3(8, 0.2, 6), Color(0.12, 0.13, 0.15))
+	# Fosso entre o vidro da triagem e o do cofre: aberto para o cofre
+	# aparecer, mas não é chão andável.
+	_open_rects.append(Rect2(27, -14, 6, 4))
+	_box_visual(Vector3(30, -0.6, -12), Vector3(6, 0.2, 4), Color(0.12, 0.13, 0.15))
 	_floor_tex = ["DiamondPlate008A", 1.5, Color(0.85, 0.82, 0.72)]
-	_room(24, 16, 36, 28, vc, {"E": [[23.0, 4.0]], "W": [[22.0, 4.0]]}, {"N": [[30.0, 8.0]]})
-	_label("cofre", Vector3(30, 0, 26.5))
+	_room(26, -24, 36, -14, vc, {"E": [[-19.0, 4.0]], "N": [[30.0, 4.0]]}, {"S": [[30.0, 6.0]]})
+	_label("cofre", Vector3(31, 0, -15.5))
 	var blast := Door.new()
 	blast.name = "PortaBlindada"
 	blast.blast_door = true
-	blast.position = Vector3(36, 0, 23)
+	blast.position = Vector3(36, 0, -19)
 	add_child(blast)
 	blast.setup(Vector3(0.8, WALL_H, 4), Color(0.55, 0.6, 0.65))
 	blast.opened_door.connect(_on_blast_door_opened)
-	_chest(Vector3(27, 0, 19), true)
-	_hint(Rect2(37, 20, 8, 6), "Porta blindada: com o Feixe, segure Q para cortar com o laser.")
-	# Saída.
-	_corridor_x(6, 24, 22.0, c)
+	_chest(Vector3(32, 0, -22), true)
+	_hint(Rect2(37, -21, 8, 4), "Porta blindada: com o Feixe, segure Q para cortar com o laser.")
+	# Saída: sobe pelo norte do cofre e volta para cima da entrada.
+	_floor_tex = CORRIDOR_TEX
+	_floor(28, -32, 32, -24, c)
+	_wall(28 - WALL_T, -31.5, 28, -24.5, WALL_H)
+	_wall(32, -31.5, 32 + WALL_T, -24.5, WALL_H)
+	_room(6, -36, 32, -32, c, {"S": [[30.0, 4.0]]}, {}, ["W"])
 	_floor_tex = ["Concrete044D", 2.5, Color(0.72, 0.85, 0.78)]
-	_room(-6, 16, 6, 28, Color(0.3, 0.42, 0.36), {"E": [[22.0, 4.0]]})
-	_label("5. Saída", Vector3(0, 0, 17))
-	_chest(Vector3(2, 0, 25), false, true)
+	_room(-6, -40, 6, -26, Color(0.3, 0.42, 0.36), {"E": [[-34.0, 4.0]]})
+	_label("5. Saída", Vector3(0, 0, -27.5))
+	_chest(Vector3(3, 0, -38), false, true)
 	var pad := _box_visual(Vector3(_exit_rect.get_center().x, 0.06, _exit_rect.get_center().y), Vector3(_exit_rect.size.x, 0.1, _exit_rect.size.y), Color(0.3, 0.95, 0.6))
 	pad.name = "SaidaPad"
 	_label("SAÍDA", Vector3(_exit_rect.get_center().x, 0, _exit_rect.get_center().y))
@@ -272,19 +289,21 @@ func _build_volta() -> void:
 func _start_cell_unlock() -> void:
 	_cell_timer = 0.0
 	Game.message("Destravando a cela... aguente 60 segundos!", 3.0)
+	# Entradas das ondas: lados e cantos do fundo (nunca por baixo da tela).
 	var west := Vector3(51.5, 0, 0)
 	var east := Vector3(68.5, 0, 0)
-	var south := Vector3(60, 0, 8)
+	var back_w := Vector3(52, 0, -8)
+	var back_e := Vector3(68, 0, -8)
 	_cell_events = [
 		{"t": 0.0, "stats": SOLDIER, "pos": west},
 		{"t": 0.5, "stats": SOLDIER, "pos": east},
-		{"t": 12.0, "stats": DRONE, "pos": south},
+		{"t": 12.0, "stats": DRONE, "pos": back_w},
 		{"t": 13.0, "stats": SOLDIER, "pos": west},
 		{"t": 24.0, "stats": SOLDIER, "pos": east},
 		{"t": 25.0, "stats": SOLDIER, "pos": west},
-		{"t": 36.0, "stats": DRONE, "pos": south},
+		{"t": 36.0, "stats": DRONE, "pos": back_e},
 		{"t": 37.0, "stats": SOLDIER, "pos": east},
-		{"t": 48.0, "stats": DRONE, "pos": south},
+		{"t": 48.0, "stats": DRONE, "pos": back_w},
 	]
 
 
@@ -296,7 +315,7 @@ func objective_text() -> String:
 	if not _switch_on:
 		return "Hangar: acerte o interruptor da passarela com o Feixe"
 	if not _blast_open:
-		return "Volte pela porta de serviço e corte a porta blindada do cofre"
+		return "Volte pela porta de serviço (fundo do hangar) e corte a porta blindada do cofre"
 	return "Vá para a saída"
 
 
@@ -310,13 +329,42 @@ func _process_cell(delta: float) -> void:
 	if _cell_timer < 0.0 or _cell_done:
 		return
 	_cell_timer += delta
+	# Aviso: o ponto de entrada acende vermelho 1 s antes.
+	for ev in _cell_events:
+		if float(ev["t"]) - WAVE_WARNING > _cell_timer:
+			break
+		if not ev.has("marker"):
+			ev["marker"] = _wave_marker(ev["pos"])
 	while not _cell_events.is_empty() and float(_cell_events[0]["t"]) <= _cell_timer:
 		var ev: Dictionary = _cell_events.pop_front()
 		var st: EnemyStats = ev["stats"]
 		var p: Vector3 = ev["pos"]
+		if ev.has("marker") and is_instance_valid(ev["marker"]):
+			(ev["marker"] as Node).queue_free()
 		_spawn_enemy(st, p + Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)), true)
 	if _cell_timer >= Game.rules.cell_unlock_time:
 		open_cell()
+
+
+## Disco vermelho que pulsa no chão onde um inimigo da onda vai entrar.
+func _wave_marker(pos: Vector3) -> Node3D:
+	var mi := MeshInstance3D.new()
+	var m := CylinderMesh.new()
+	m.top_radius = 1.2
+	m.bottom_radius = 1.2
+	m.height = 0.04
+	mi.mesh = m
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(1.0, 0.15, 0.1, 0.55)
+	mi.material_override = mat
+	mi.position = Vector3(pos.x, 0.04, pos.z)
+	add_child(mi)
+	var tw := mi.create_tween().set_loops()
+	tw.tween_property(mat, "albedo_color:a", 0.15, 0.2)
+	tw.tween_property(mat, "albedo_color:a", 0.6, 0.2)
+	return mi
 
 
 ## Também usado pelo atalho de teste F3.
@@ -423,6 +471,7 @@ func _build_structure() -> void:
 	var pitch := deg_to_rad(maxf(Game.rules.camera_pitch_degrees, 5.0))
 	var back_h := maxf(Game.rules.backdrop_height, WALL_H)
 	var reach := back_h / tan(pitch) + Game.rules.cutaway_margin
+	var side_cut := not (self is Escola)
 
 	# 0 = aberto, 1 = estrutura baixa (cortada), 2 = estrutura alta.
 	var kind := PackedByteArray()
@@ -446,6 +495,16 @@ func _build_structure() -> void:
 				if qx >= 0 and qx < nx and qz >= 0 and qz < nz and open[qz * nx + qx] != 0:
 					low = true
 					break
+				# Na fase, chão aberto até 2 m para o lado também corta: assim
+				# as quinas laterais não tampam o herói quando a câmera segue
+				# a mira para o lado.
+				if side_cut and qz >= 0 and qz < nz:
+					for lat in [-2, -1, 1, 2]:
+						var lx: int = qx + lat
+						if lx >= 0 and lx < nx and open[qz * nx + lx] != 0:
+							low = true
+					if low:
+						break
 				k += 0.5
 			kind[idx] = 1 if low else 2
 
@@ -496,6 +555,13 @@ func _build_structure() -> void:
 	var kept: Array[Dictionary] = []
 	for w in _walls:
 		var r: Rect2 = w["rect"]
+		# Na fase, ignora as pontas de 0,5 m que encostam no chão da sala
+		# vizinha: senão a parede inteira escapa do corte e fica com 3 m na
+		# frente da câmera.
+		if side_cut:
+			var hx := 0.5 if r.size.x > r.size.y else 0.0
+			var hz := 0.5 if r.size.y > r.size.x else 0.0
+			r = r.grow_individual(-hx, -hz, -hx, -hz)
 		if _rect_fully_solid(r, open, x_min, z_min, nx, nz):
 			var body: StaticBody3D = w["body"]
 			(body.get_child(1) as MeshInstance3D).visible = false

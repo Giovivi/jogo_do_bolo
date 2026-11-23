@@ -190,7 +190,7 @@ func take_damage(amount: float, source: Node = null, info: Dictionary = {}) -> f
 	_react_to_hit(strength, dir, source, info, killed)
 	# "quiet": reação completa no alvo, mas sem pausa e tremor (raio contínuo).
 	var feedback_strength: int = Impact.WEAK if info.get("quiet", false) else strength
-	Game.impact_feedback(feedback_strength, source, self, killed)
+	Game.impact_feedback(feedback_strength, source, self, killed, info)
 	damaged.emit(amount)
 	hit_reacted.emit(strength)
 	_on_damaged(amount, source)

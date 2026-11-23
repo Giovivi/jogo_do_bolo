@@ -22,6 +22,12 @@ var _stun: float = 0.0
 var _knockdown: float = 0.0
 var _sway: float = 0.0
 var _sway_time: float = 0.0
+## Golpe corpo a corpo: lentidão, tempo sem atordoar e "firmeza" do escudo.
+var _slow_time: float = 0.0
+var _stagger_immune: float = 0.0
+var _poise_damage: float = 0.0
+var _slow_fx: GPUParticles3D
+var _recoil_tween: Tween
 
 
 func _ready() -> void:
@@ -111,6 +117,10 @@ func _physics_process(delta: float) -> void:
 ## Atualiza interrupção, queda e balanço. Devolve true enquanto o inimigo
 ## não pode agir.
 func _tick_hit_reaction(delta: float) -> bool:
+	_slow_time = maxf(0.0, _slow_time - delta)
+	_stagger_immune = maxf(0.0, _stagger_immune - delta)
+	if _slow_fx != null:
+		_slow_fx.emitting = _slow_time > 0.0
 	if _sway_time > 0.0:
 		_sway_time = maxf(_sway_time - delta, 0.0)
 		visual.rotation.z = sin(_sway_time * 28.0) * _sway * (_sway_time / 0.6)
@@ -130,7 +140,8 @@ func _tick_hit_reaction(delta: float) -> bool:
 
 func _apply_motion(move: Vector3, delta: float) -> void:
 	var kb := apply_knockback(delta)
-	var v := move * stats.move_speed + kb
+	var speed := stats.move_speed * (Impact.MELEE_SLOW if _slow_time > 0.0 else 1.0)
+	var v := move * speed + kb
 	if flying:
 		v.y = 0.0
 	else:
@@ -181,12 +192,20 @@ func take_damage(amount: float, source: Node = null, info: Dictionary = {}) -> f
 		if to_src.normalized().dot(facing) > 0.35:
 			knockback_velocity = -to_src.normalized() * 1.0
 			return 0.0
+	if info.get("melee", false):
+		_poise_damage += amount
 	return super.take_damage(amount, source, info)
 
 
 func _react_to_hit(strength: int, dir: Vector3, source: Node, info: Dictionary, killed: bool) -> void:
 	super._react_to_hit(strength, dir, source, info, killed)
 	if killed:
+		return
+	if info.get("melee", false):
+		if flying:
+			_sway = 0.35 if strength >= Impact.STRONG else 0.2
+			_sway_time = 0.6
+		_react_to_melee(strength >= Impact.STRONG)
 		return
 	if flying:
 		# Drone não cai: é jogado para trás e balança.
@@ -205,6 +224,73 @@ func _react_to_hit(strength: int, dir: Vector3, source: Node, info: Dictionary, 
 	elif strength >= Impact.STRONG:
 		_cancel_windup()
 		_stun = maxf(_stun, Impact.STUN_STRONG)
+
+
+## Golpe corpo a corpo: o inimigo sente o soco. Fica lento sempre; atordoa
+## (perde o tiro carregado e dá um tranco para trás) se puder: o de escudo
+## só depois de quebrar a firmeza, e ninguém logo depois de um golpe final.
+func _react_to_melee(finisher: bool) -> void:
+	_slow_time = Impact.MELEE_SLOW_TIME
+	_ensure_slow_fx()
+	var heavy := 1 if finisher else 0
+	if _stagger_immune > 0.0:
+		return
+	if stats.shielded:
+		if _poise_damage < Impact.SHIELD_POISE:
+			return
+		_poise_damage = 0.0
+	var stun: float = Impact.MELEE_STUN[heavy]
+	if flying:
+		stun *= Impact.DRONE_STUN_MULTIPLIER
+	_cancel_windup()
+	_stun = maxf(_stun, stun)
+	if finisher:
+		_stagger_immune = stun + Impact.MELEE_STAGGER_IMMUNE
+	if not flying and _knockdown <= 0.0:
+		# Tranco: inclina para trás em 2 quadros e volta em 0,15 s.
+		if _recoil_tween != null and _recoil_tween.is_valid():
+			_recoil_tween.kill()
+		_recoil_tween = create_tween()
+		_recoil_tween.tween_property(visual, "rotation:x", deg_to_rad(Impact.MELEE_RECOIL_DEGREES[heavy]), 0.033)
+		_recoil_tween.tween_property(visual, "rotation:x", 0.0, 0.15).set_delay(maxf(0.0, stun - 0.18))
+
+
+## Chama azul nos pés enquanto o inimigo está lento.
+func _ensure_slow_fx() -> void:
+	if _slow_fx != null:
+		return
+	var p := GPUParticles3D.new()
+	p.amount = 24
+	p.lifetime = 0.45
+	p.local_coords = false
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var q := QuadMesh.new()
+	q.size = Vector2(0.26, 0.42)
+	var m := HandFire._additive(HandFire._flame_texture())
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	q.material = m
+	p.draw_pass_1 = q
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	pm.emission_ring_axis = Vector3.UP
+	pm.emission_ring_radius = stats.body_radius + 0.05
+	pm.emission_ring_inner_radius = stats.body_radius - 0.1
+	pm.emission_ring_height = 0.05
+	pm.direction = Vector3.UP
+	pm.spread = 10.0
+	pm.initial_velocity_min = 0.3
+	pm.initial_velocity_max = 0.7
+	pm.gravity = Vector3(0, 1.5, 0)
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.4, 1.0])
+	g.colors = PackedColorArray([Color(0.6, 0.8, 1.0, 0.7), Color(0.2, 0.45, 1.0, 0.5), Color(0.05, 0.1, 0.6, 0.0)])
+	var gt := GradientTexture1D.new()
+	gt.gradient = g
+	pm.color_ramp = gt
+	p.process_material = pm
+	add_child(p)
+	p.position = Vector3(0, hover_offset + 0.05, 0)
+	_slow_fx = p
 
 
 func _cancel_windup() -> void:
