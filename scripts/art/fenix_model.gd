@@ -1,23 +1,83 @@
 class_name FenixModel
 extends Node3D
-## Modelo 3D do Fênix (forma humana): casaco de penas azul com fogo nas
-## costas, cabelo curto penteado de lado. Feito no Blender (art/modelos).
-## Pose em A, ainda sem esqueleto: a animação vem depois, pelo Mixamo.
+## Modelo 3D do Fênix (forma humana) com esqueleto e animações.
+## Malha feita no Blender; esqueleto e animações da Universal Animation
+## Library do Quaternius (CC0). Escolhe sozinho parado / andando / correndo /
+## no ar pelo movimento do herói; golpes e reações tocam por cima com play_once().
 
-const MODEL := preload("res://art/modelos/fenix_humano.glb")
+const MODEL := preload("res://art/modelos/fenix_animado.glb")
 
-## Altura do modelo exportado (m) e altura que ele deve ter no jogo.
-const MODEL_HEIGHT := 1.8
-@export var height: float = 1.8
+const IDLE := "Idle"
+const WALK := "Walk"
+const RUN := "Jog_Fwd"
+const AIR := "Jump"
+const DEATH := "Death01"
+
+## Velocidades (m/s) em que as animações de andar e correr ficam no ritmo dos pés.
+const WALK_ANIM_SPEED := 1.6
+const RUN_ANIM_SPEED := 4.2
+
+var hero: Hero
+var anim: AnimationPlayer
+var _one_shot: String = ""
 
 
 func _ready() -> void:
 	var m := MODEL.instantiate() as Node3D
 	# O glb olha para +Z; os atores do jogo olham para -Z.
 	m.rotation_degrees.y = 180.0
-	m.scale = Vector3.ONE * (height / MODEL_HEIGHT)
 	add_child(m)
 	_fix_materials(m)
+	anim = m.find_children("*", "AnimationPlayer", true, false).front() as AnimationPlayer
+	# A Godot tira o "_Loop" do nome na importação; garante o loop mesmo assim.
+	for n in [IDLE, WALK, RUN, AIR]:
+		anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
+	anim.animation_finished.connect(_on_finished)
+	_play(IDLE)
+
+
+## Toca um golpe ou reação uma vez; depois volta sozinho ao movimento.
+func play_once(anim_name: String, speed: float = 1.0) -> void:
+	if anim == null or not anim.has_animation(anim_name):
+		return
+	_one_shot = anim_name
+	anim.speed_scale = speed
+	anim.play(anim_name, 0.08)
+	anim.seek(0.0, true)
+
+
+func _process(_delta: float) -> void:
+	if anim == null or hero == null:
+		return
+	if hero.is_dead:
+		if _one_shot != DEATH:
+			play_once(DEATH)
+		return
+	if _one_shot == DEATH:
+		_one_shot = ""
+	if _one_shot != "":
+		return
+	var flat := Vector2(hero.velocity.x, hero.velocity.z).length()
+	if not hero.is_on_floor() and absf(hero.velocity.y) > 0.5:
+		_play(AIR)
+	elif flat < 0.3:
+		_play(IDLE)
+	elif flat < 3.0:
+		_play(WALK, flat / WALK_ANIM_SPEED)
+	else:
+		_play(RUN, flat / RUN_ANIM_SPEED)
+
+
+func _play(anim_name: String, speed: float = 1.0) -> void:
+	anim.speed_scale = clampf(speed, 0.5, 2.2)
+	if anim.current_animation != anim_name:
+		anim.play(anim_name, 0.15)
+
+
+func _on_finished(anim_name: String) -> void:
+	# A queda fica parada no último quadro até o herói ser revivido.
+	if anim_name == _one_shot and anim_name != DEATH:
+		_one_shot = ""
 
 
 ## Penas e casaco usam a cor por vértice; o fogo fica sem sombra para brilhar.

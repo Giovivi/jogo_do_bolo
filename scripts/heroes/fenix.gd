@@ -10,6 +10,7 @@ var _combo_timer: float = 0.0
 var _gliding: bool = false
 var _glide_dir: Vector3 = Vector3.ZERO
 var _glide_travelled: float = 0.0
+var model: FenixModel
 
 
 func _ready() -> void:
@@ -25,7 +26,9 @@ func _use_model() -> void:
 	for child in visual.get_children():
 		if child is MeshInstance3D:
 			child.visible = false
-	visual.add_child(FenixModel.new())
+	model = FenixModel.new()
+	model.hero = self
+	visual.add_child(model)
 
 
 func _fx() -> FenixStats:
@@ -74,6 +77,7 @@ func claw_attack() -> bool:
 	start_cooldown("basic", s.combo_interval * (1.6 if finisher else 1.0))
 	_combo_step = step + 1
 	_combo_timer = s.combo_reset_time
+	model.play_once("Sword_Attack" if finisher else ("Punch_Jab" if step % 2 == 0 else "Punch_Cross"), 1.6)
 	var color := Color(1.0, 0.55, 0.2, 0.55) if not finisher else Color(1.0, 0.3, 0.1, 0.75)
 	Game.flash_cone(global_position, facing, s.claw_range, s.claw_arc_degrees, color, 0.12)
 	var hit_any := false
@@ -105,6 +109,7 @@ func fire_wings() -> bool:
 	var s := _fx()
 	start_cooldown("q", s.q_cooldown)
 	ability_lock = 0.25
+	model.play_once("Spell_Simple_Shoot", 1.4)
 	Game.flash_cone(global_position, facing, s.wings_range, s.wings_arc_degrees, Color(1.0, 0.35, 0.05, 0.7), 0.35)
 	for e in Game.living_enemies():
 		var enemy := e as Actor
@@ -134,6 +139,7 @@ func blue_flame(aim: Vector3, use_mouse: bool, forced_target: Hero = null) -> bo
 		target = self
 	start_cooldown("e", s.e_cooldown)
 	ability_lock = 0.2
+	model.play_once("Spell_Simple_Shoot", 1.4)
 	target.heal(s.heal_amount)
 	Game.flash_ring(target.global_position, 1.2, Color(0.3, 0.6, 1.0, 0.7), 0.5)
 	if target != self:
@@ -231,7 +237,7 @@ func _air_motion(v: Vector3, move: Vector3, on_floor: bool, delta: float) -> Vec
 		_glide_dir = move if move.length() > 0.1 else facing
 		_glide_dir.y = 0.0
 		_glide_dir = _glide_dir.normalized()
-		visual.scale = Vector3(1.6, 0.6, 1.0)
+		model.play_once("Jump", 0.6)
 	if _gliding:
 		if move.length() > 0.1:
 			_glide_dir = _glide_dir.lerp(Vector3(move.x, 0.0, move.z).normalized(), clampf(4.0 * delta, 0.0, 1.0)).normalized()
@@ -261,6 +267,15 @@ func is_gliding() -> bool:
 func go_down() -> void:
 	_end_glide()
 	super.go_down()
+	# O modelo tem animação de queda: não precisa deitar a cápsula.
+	visual.rotation.x = 0.0
+	visual.position.y = 0.0
+
+
+func _on_damaged(amount: float, source: Node) -> void:
+	super._on_damaged(amount, source)
+	if not is_dead:
+		model.play_once("Hit_Chest", 1.5)
 
 
 # ---------------------------------------------------------------- IA
