@@ -22,8 +22,9 @@ var outside_door_spot := Vector3(0, 0, 10)
 var _floor_mat: Material
 var _lamp_scale := 1.0
 var _lab_door: Door
-## Salas cobertas pelo telhado até a primeira visita: nome -> {rect, node}.
-var _coberturas: Dictionary = {}
+## Parede da frente das salas laterais: {rect, mat} (some com o grupo dentro).
+var _frentes: Array[Dictionary] = []
+var _porta_oficiais: Array = []
 
 
 func build() -> void:
@@ -50,7 +51,7 @@ func build() -> void:
 		w["color"] = c
 		(w["mat"] as StandardMaterial3D).albedo_color = c
 	Game.chests_total = 0
-	_build_coberturas()
+	_build_paredes_laterais()
 
 
 func rescued_count() -> int:
@@ -149,10 +150,35 @@ func _build_saguao() -> void:
 	_link(x0 - 1, -3.5, x0, -0.5)
 	_link(x1, -3.5, x1 + 1, -0.5)
 	_label("Saguão", Vector3(IN_X, 0, 3))
+	# Pé-direito duplo: as paredes do saguão sobem inteiras até o 2º andar,
+	# para não se ver as salas vizinhas por cima delas.
+	var tall := Look.brick({"moss_amount": 0.25})
+	var top_h := 7.5
+	var up := top_h - WALL_H
+	_solid_piece(Vector3(x0 - WALL_T * 0.5, WALL_H + up * 0.5, -5.0), Vector3(WALL_T, up, 18.0 + 2.0 * WALL_T), tall)
+	_solid_piece(Vector3(x1 + WALL_T * 0.5, WALL_H + up * 0.5, -5.0), Vector3(WALL_T, up, 18.0 + 2.0 * WALL_T), tall)
+	var n_wall: Array = []
+	n_wall.append(Look.piece(self, Look.box(Vector3(16.0 + 2.0 * WALL_T, up, WALL_T)), tall, Vector3(IN_X, WALL_H + up * 0.5, -14.0 - WALL_T * 0.5)))
+	# Paredes laterais (saguão | laboratório e saguão | treino): o trecho da
+	# frente, que o corte deixava baixo, sobe inteiro, e as portas ganham
+	# parede por cima, para não se ver as salas vizinhas pelos vãos.
+	for wx in [x0 - WALL_T * 0.5 - 0.25, x1 + WALL_T * 0.5 + 0.25]:
+		Look.piece(self, Look.box(Vector3(1.0, top_h, 5.0)), tall, Vector3(wx, top_h * 0.5, 2.0))
+		Look.piece(self, Look.box(Vector3(1.0, top_h - WALL_H, 3.0)), tall, Vector3(wx, WALL_H + (top_h - WALL_H) * 0.5, -2.0))
+	# A parede de baixo entre o saguão e a sala dos oficiais (com a porta).
+	var seg := (16.0 + 2.0 * WALL_T - 2.0) * 0.5
+	for sx in [-1.0, 1.0]:
+		n_wall.append(Look.piece(self, Look.box(Vector3(seg, WALL_H, WALL_T)), tall, Vector3(IN_X + sx * (1.0 + seg * 0.5), WALL_H * 0.5, -14.0 - WALL_T * 0.5)))
+	# Rodapé de madeira na altura do mezanino.
+	for wx in [x0 + 0.02, x1 - 0.02]:
+		Look.piece(self, Look.box(Vector3(0.06, 0.2, 18.0)), Look.wood(Color(0.3, 0.2, 0.14)), Vector3(wx, MEZ_Y + 0.1, -5.0))
 	var wood := Look.wood()
 	var dark_wood := Look.wood(Color(0.3, 0.2, 0.14))
 	# Sala de planos fechada, atrás da porta dos oficiais no fundo do saguão.
 	_build_sala_planos()
+	# Dentro da sala dos oficiais, essa parede e a porta somem (ficam entre a
+	# câmera e o herói).
+	_frentes.append({"rect": Rect2(74, -24, 12, 9.5), "nodes": n_wall + _porta_oficiais, "faded": false})
 	# Mezanino a 3,5 m: fundo e laterais, com guarda-corpo.
 	var slab := Look.surface(Color(0.45, 0.44, 0.41), {"outline": 0.04, "moss_amount": 0.3})
 	_solid_piece(Vector3(x0 + 1.25, MEZ_Y - 0.15, -5.0), Vector3(2.5, 0.3, 18.0), slab)
@@ -213,11 +239,11 @@ func _build_sala_planos() -> void:
 	_link(IN_X - 1.0, z1, IN_X + 1.0, -14.0)
 	# Porta reforçada com placa.
 	var metal := Look.surface(Color(0.24, 0.27, 0.3), {"outline": 0.03, "variation": 0.2})
-	Look.piece(self, Look.box(Vector3(0.25, 2.6, 0.7)), metal, Vector3(IN_X - 1.15, 1.3, -14.25))
-	Look.piece(self, Look.box(Vector3(0.25, 2.6, 0.7)), metal, Vector3(IN_X + 1.15, 1.3, -14.25))
-	Look.piece(self, Look.box(Vector3(2.55, 0.3, 0.7)), metal, Vector3(IN_X, 2.65, -14.25))
-	Look.piece(self, Look.box(Vector3(1.0, 2.3, 0.08)), metal, Vector3(IN_X - 1.45, 1.15, -13.7), Vector3(0, -70, 0))
-	Look.piece(self, Look.box(Vector3(1.9, 0.45, 0.06)), Look.surface(Color(0.6, 0.12, 0.1), {"outline": 0.015}), Vector3(IN_X, 3.15, -13.9))
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(0.25, 2.6, 0.7)), metal, Vector3(IN_X - 1.15, 1.3, -14.25)))
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(0.25, 2.6, 0.7)), metal, Vector3(IN_X + 1.15, 1.3, -14.25)))
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(2.55, 0.3, 0.7)), metal, Vector3(IN_X, 2.65, -14.25)))
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(1.0, 2.3, 0.08)), metal, Vector3(IN_X - 1.45, 1.15, -13.7), Vector3(0, -70, 0)))
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(1.9, 0.45, 0.06)), Look.surface(Color(0.6, 0.12, 0.1), {"outline": 0.015}), Vector3(IN_X, 3.15, -13.9)))
 	var sign := Label3D.new()
 	sign.text = "SALA DOS OFICIAIS"
 	sign.font_size = 40
@@ -226,7 +252,8 @@ func _build_sala_planos() -> void:
 	sign.modulate = Color(1.0, 0.92, 0.8)
 	sign.position = Vector3(IN_X, 3.15, -13.86)
 	add_child(sign)
-	Look.piece(self, Look.box(Vector3(0.18, 0.28, 0.05)), Look.glow(Color(0.3, 1.0, 0.45), 1.6), Vector3(IN_X + 1.5, 1.3, -13.88))
+	_porta_oficiais.append(sign)
+	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(0.18, 0.28, 0.05)), Look.glow(Color(0.3, 1.0, 0.45), 1.6), Vector3(IN_X + 1.5, 1.3, -13.88)))
 	# Mesa do mapa no centro.
 	_build_mesa(Vector3(IN_X, 0.0, -19.5))
 	# Quadro de cortiça com fotos e fios, armários e arquivos.
@@ -362,64 +389,32 @@ func _build_treino() -> void:
 	_hint(Rect2(89, -4, 3, 4), "O ginásio está cheio de entulho. Um mutante forte poderia liberar o treino.")
 
 
-# ================================================================ salas cobertas
+# ================================================================ salas laterais
 
-## Laboratório, treino e sala dos oficiais ficam sob o telhado com mato até
-## o grupo entrar pela primeira vez. Depois ficam abertas para sempre.
-func _build_coberturas() -> void:
-	var visited: Dictionary = Game.progress.get("salas_vistas", {})
-	Game.progress["salas_vistas"] = visited
-	var rooms := {
-		"laboratorio": Rect2(56, -14, 15, 18),
-		"treino": Rect2(89, -14, 15, 18),
-		"oficiais": Rect2(74, -24, 12, 9.5),
-	}
-	var roof := Look.surface(Color(0.42, 0.4, 0.37), {"outline": 0.04, "moss_amount": 0.7, "variation": 0.3, "noise_scale": 2.0})
-	var dark := StandardMaterial3D.new()
-	dark.albedo_color = Color(0.05, 0.05, 0.06)
-	dark.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var tile := Look.surface(Color(0.5, 0.27, 0.2), {"outline": 0.03, "variation": 0.35, "moss_amount": 0.5})
-	var k := 0
-	for key in rooms:
-		if visited.get(key, false):
-			continue
-		var r: Rect2 = rooms[key]
-		var root := Node3D.new()
-		root.name = "Telhado_" + key
-		add_child(root)
-		var h := WALL_H + 0.05
-		var c := Vector3(r.position.x + r.size.x * 0.5, 0, r.position.y + r.size.y * 0.5)
-		# Miolo escuro (esconde o interior pelas portas) e laje com mato.
-		Look.piece(root, Look.box(Vector3(r.size.x - 0.05, h - 0.05, r.size.y - 0.05)), dark, c + Vector3(0, h * 0.5, 0))
-		Look.piece(root, Look.box(Vector3(r.size.x, 0.3, r.size.y)), roof, c + Vector3(0, h + 0.15, 0))
-		# Telhas soltas e mato crescendo em cima.
-		for i in 6:
-			var px := r.position.x + 1.2 + rng.randf() * (r.size.x - 2.4)
-			var pz := r.position.y + 1.2 + rng.randf() * (r.size.y - 2.4)
-			Look.piece(root, Look.box(Vector3(1.4, 0.12, 0.9)), tile, Vector3(px, h + 0.36, pz), Vector3(0, rng.randf_range(0, 90), rng.randf_range(-6, 6)))
-		for i in 5:
-			var bx := r.position.x + 1.0 + rng.randf() * (r.size.x - 2.0)
-			var bz := r.position.y + 1.0 + rng.randf() * (r.size.y - 2.0)
-			Look.bush(root, Vector3(bx, h + 0.3, bz), rng.randf_range(0.7, 1.2), k * 10 + i)
-		_coberturas[key] = {"rect": r, "node": root}
-		k += 1
+## Laboratório e treino têm a parede da frente inteira (dois andares), para não
+## se ver dentro deles do saguão. Com o grupo dentro, a parede fica transparente.
+func _build_paredes_laterais() -> void:
+	var h := 8.0
+	for r in [Rect2(56, -14, 15, 18), Rect2(89, -14, 15, 18)]:
+		var mat := Look.brick({"moss_amount": 0.5})
+		var size := Vector3(r.size.x + 2.0 * WALL_T, h, 0.5)
+		var c := Vector3(r.get_center().x, h * 0.5, r.end.y + 0.25)
+		var mi := Look.piece(self, Look.box(size), mat, c)
+		# Faixa escura no topo, como o resto da estrutura.
+		var cap := StandardMaterial3D.new()
+		cap.albedo_color = Color(0.14, 0.15, 0.17)
+		var top := Look.piece(self, Look.box(Vector3(size.x, 0.05, size.z)), cap, c + Vector3(0, h * 0.5 + 0.02, 0))
+		_frentes.append({"rect": r, "nodes": [mi, top], "faded": false})
 
 
-func _update_coberturas(pos: Vector3) -> void:
-	if _coberturas.is_empty():
-		return
+func _update_paredes_laterais(pos: Vector3) -> void:
 	var p := Vector2(pos.x, pos.z)
-	for key in _coberturas.keys():
-		var r: Rect2 = _coberturas[key]["rect"]
-		if not r.grow(-0.3).has_point(p):
-			continue
-		var node: Node3D = _coberturas[key]["node"]
-		_coberturas.erase(key)
-		Game.progress["salas_vistas"][key] = true
-		# O telhado sobe e some.
-		var tw := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw.tween_property(node, "position:y", 6.0, 0.45)
-		tw.tween_callback(node.queue_free)
+	for f in _frentes:
+		var inside: bool = (f["rect"] as Rect2).grow(0.2).has_point(p)
+		if inside != f["faded"]:
+			f["faded"] = inside
+			for n in f["nodes"]:
+				(n as Node3D).visible = not inside
 
 
 # ================================================================ peças do hub
@@ -598,4 +593,4 @@ func _physics_process(_delta: float) -> void:
 	var hero: Hero = party.controlled_hero
 	_update_wall_fade(hero.global_position)
 	_update_hints(hero.global_position)
-	_update_coberturas(hero.global_position)
+	_update_paredes_laterais(hero.global_position)
