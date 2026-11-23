@@ -29,3 +29,14 @@ Cada pasta tem só a cor (`_color.jpg`) e o normal no padrão OpenGL (`_normal.j
 | `PaintedMetal016/` | Painted Metal 016 | https://ambientcg.com/a/PaintedMetal016 | Fase: faixa de aviso amarela e preta nas bordas das plataformas e porta de serviço |
 | `MetalPlates014/` | Metal Plates 014 | https://ambientcg.com/a/MetalPlates014 | Hub: bancadas do laboratório · Fase: grade da cela, sala secreta, caixotes, portas blindadas e ferragens dos baús |
 | `Planks037A/` | Planks 037 A | https://ambientcg.com/a/Planks037A | Fase: madeira dos baús |
+| `Bricks094/` | Bricks 094 | https://ambientcg.com/a/Bricks094 | Hub: tijolo velho da fachada, paredes externas, chaminés e garagem |
+| `RoofingTiles003/` | Roofing Tiles 003 | https://ambientcg.com/a/RoofingTiles003 | Hub: telhado de ardósia do corpo central e do pavilhão leste |
+| `Plaster007/` | Plaster 007 | https://ambientcg.com/a/Plaster007 | Hub: reboco sujo das paredes internas |
+| `PaintedPlaster015/` | Painted Plaster 015 | https://ambientcg.com/a/PaintedPlaster015 | Hub: tetos (fundo das lajes) |
+| `Tiles013/` | Tiles 013 | https://ambientcg.com/a/Tiles013 | Hub: piso xadrez bege do saguão |
+| `Tiles016/` | Tiles 016 | https://ambientcg.com/a/Tiles016 | Hub: piso de enfermaria, banheiros, cozinha, arquivo e lavabo |
+| `Ground054/` | Ground 054 | https://ambientcg.com/a/Ground054 | Hub: areia acumulada nos cantos e fundo da fonte seca |
+| `Concrete036/` | Concrete 036 | https://ambientcg.com/a/Concrete036 | Hub: pátio, embasamento, pórtico, quadra e pisos de cimento |
+| `Concrete047A/` | Concrete 047 A | https://ambientcg.com/a/Concrete047A | Hub: asfalto do acesso de veículos |
+| `WoodFloor003/` | Wood Floor 003 | https://ambientcg.com/a/WoodFloor003 | Hub: assoalho gasto dos corredores e da galeria |
+| `WoodFloor004/` | Wood Floor 004 | https://ambientcg.com/a/WoodFloor004 | Hub: assoalho do refeitório, biblioteca e convivência |
