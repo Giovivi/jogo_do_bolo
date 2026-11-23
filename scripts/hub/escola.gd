@@ -254,6 +254,13 @@ func _build_sala_planos() -> void:
 	add_child(sign)
 	_porta_oficiais.append(sign)
 	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(0.18, 0.28, 0.05)), Look.glow(Color(0.3, 1.0, 0.45), 1.6), Vector3(IN_X + 1.5, 1.3, -13.88)))
+	# Paredes internas lisas, de uma peça só. A estrutura em volta é montada
+	# em faixas de 1 m e, aqui de perto, o tijolo aparecia em degraus virados.
+	var inner := Look.brick({"moss_amount": 0.2})
+	var hh := 8.0
+	for wx in [sx0 - 0.26, sx1 + 0.26]:
+		Look.piece(self, Look.box(Vector3(0.5, hh, z1 - z0 + 0.5)), inner, Vector3(wx, hh * 0.5, (z0 + z1) * 0.5 - 0.25))
+	Look.piece(self, Look.box(Vector3(sx1 - sx0 + 1.0, hh, 0.5)), inner, Vector3(IN_X, hh * 0.5, z0 - 0.26))
 	# Mesa do mapa no centro.
 	_build_mesa(Vector3(IN_X, 0.0, -19.5))
 	# Quadro de cortiça com fotos e fios, armários e arquivos.
