@@ -15,6 +15,9 @@ const MASK_HERO_GLIDING := MASK_HERO
 ## Alcance vertical: golpes e cones curtos / tiros, laser e áreas grandes.
 const REACH_MELEE := 1.5
 const REACH_RANGED := 3.0
+## Mira pela tela: folga (m) em volta do inimigo para o "ímã" da mira.
+const AIM_MAGNET := 1.0
+const LASER_RED := Color(1.0, 0.16, 0.1)
 const MASK_ENEMY := LAYER_WORLD | LAYER_HEROES | LAYER_ENEMIES | LAYER_GAPS | LAYER_WALKWAY
 const MASK_DRONE := LAYER_WORLD | LAYER_ENEMIES
 
@@ -40,6 +43,8 @@ var run_time: float = 0.0
 var run_finished: bool = false
 
 var _hitstop_running: bool = false
+var _flare_tex: ImageTexture = null
+
 
 
 func _ready() -> void:
@@ -315,6 +320,132 @@ func flash_line(from: Vector3, to: Vector3, width: float, color: Color, duration
 	m.size = Vector3(width, 0.25, length)
 	var basis := Basis.looking_at((flat_to - flat_from).normalized(), Vector3.UP)
 	flash_shape(m, Transform3D(basis, (flat_from + flat_to) * 0.5), color, duration)
+
+
+# ---------------------------------------------------------------- mira e laser
+
+## Altura do centro do corpo de um ator (drones voam acima do nó).
+func body_center(a: Actor) -> Vector3:
+	var up: float = a.hover_offset + (0.6 if a.flying else 0.85)
+	return a.global_position + Vector3(0, up, 0)
+
+
+## Inimigo embaixo do cursor na tela (com ~1 m de folga), dentro do alcance.
+## Resolve a mira em drones: o cursor em cima do drone mira nele, e não no
+## chão atrás dele.
+func aim_target(from: Node3D, max_range: float) -> Actor:
+	if camera == null:
+		return null
+	var mouse: Vector2 = camera.get_viewport().get_mouse_position()
+	var right: Vector3 = camera.global_transform.basis.x
+	var best: Actor = null
+	var best_score: float = INF
+	for e in living_enemies():
+		var a := e as Actor
+		if a == null:
+			continue
+		if flat_distance(from.global_position, a.global_position) > max_range + a.body_radius:
+			continue
+		var c: Vector3 = body_center(a)
+		if camera.is_position_behind(c):
+			continue
+		var sc: Vector2 = camera.unproject_position(c)
+		var edge: Vector2 = camera.unproject_position(c + right * (a.body_radius + AIM_MAGNET))
+		var tol: float = maxf(sc.distance_to(edge), 1.0)
+		var score: float = sc.distance_to(mouse) / tol
+		if score <= 1.0 and score < best_score:
+			best_score = score
+			best = a
+	return best
+
+
+## Raio de laser: núcleo claro e fino dentro de um brilho vermelho.
+func laser_beam(from: Vector3, to: Vector3, core_width: float, glow_width: float, duration: float = 0.1) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	if world_root == null:
+		return out
+	out.append(_beam_mesh(from, to, glow_width, Color(LASER_RED.r, LASER_RED.g, LASER_RED.b, 0.55), duration))
+	out.append(_beam_mesh(from, to, core_width, Color(1.0, 0.88, 0.85, 0.95), duration))
+	return out
+
+
+func _beam_mesh(from: Vector3, to: Vector3, width: float, color: Color, duration: float) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var m := BoxMesh.new()
+	m.size = Vector3(1, 1, 1)
+	mi.mesh = m
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	world_root.add_child(mi)
+	place_beam(mi, from, to, width)
+	if duration > 0.0:
+		var tw := mi.create_tween()
+		tw.tween_property(mat, "albedo_color:a", 0.0, duration)
+		tw.tween_callback(mi.queue_free)
+	return mi
+
+
+## Estica uma caixa de raio entre dois pontos.
+func place_beam(mi: MeshInstance3D, from: Vector3, to: Vector3, width: float) -> void:
+	var d: Vector3 = to - from
+	var length: float = maxf(d.length(), 0.05)
+	var up := Vector3.UP
+	if absf(d.normalized().dot(up)) > 0.98:
+		up = Vector3.FORWARD
+	var basis := Basis.looking_at(d.normalized() if d.length() > 0.01 else Vector3.FORWARD, up)
+	mi.global_transform = Transform3D(basis * Basis.from_scale(Vector3(width, width, length)), (from + to) * 0.5)
+
+
+## Clarão estrelado (referência da Vivi): brilho vermelho redondo com
+## estrela branca e risco horizontal. duration <= 0 deixa fixo.
+func laser_flare(pos: Vector3, size: float, duration: float = 0.1) -> Sprite3D:
+	if world_root == null:
+		return null
+	var sp := Sprite3D.new()
+	sp.texture = _flare_texture()
+	sp.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sp.no_depth_test = true
+	sp.shaded = false
+	sp.pixel_size = size / 128.0
+	world_root.add_child(sp)
+	sp.global_position = pos
+	if duration > 0.0:
+		var tw := sp.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(sp, "scale", Vector3.ONE * 1.4, duration)
+		tw.tween_property(sp, "modulate:a", 0.0, duration)
+		tw.chain().tween_callback(sp.queue_free)
+	return sp
+
+
+func _flare_texture() -> ImageTexture:
+	if _flare_tex != null:
+		return _flare_tex
+	var n := 128
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	for y in n:
+		for x in n:
+			var dx: float = (float(x) + 0.5) / float(n) * 2.0 - 1.0
+			var dy: float = (float(y) + 0.5) / float(n) * 2.0 - 1.0
+			var r2: float = dx * dx + dy * dy
+			var glow: float = exp(-r2 * 7.0)
+			var streak: float = exp(-absf(dy) * 90.0) * maxf(0.0, 1.0 - absf(dx))
+			var star: float = exp(-absf(dx) * 40.0) * maxf(0.0, 1.0 - absf(dy) * 1.6) \
+					+ exp(-absf(dy) * 40.0) * maxf(0.0, 1.0 - absf(dx) * 1.6)
+			var diag: float = (exp(-absf(dx - dy) * 45.0) + exp(-absf(dx + dy) * 45.0)) * maxf(0.0, 1.0 - sqrt(r2) * 2.6)
+			var core: float = exp(-r2 * 140.0)
+			var white: float = clampf(star + diag * 0.7 + core + streak * 0.8, 0.0, 1.0)
+			var c := Color(LASER_RED.r, LASER_RED.g, LASER_RED.b) * glow
+			c = c.lerp(Color(1, 1, 1), white)
+			c.a = clampf(maxf(glow * 0.9, white), 0.0, 1.0)
+			img.set_pixel(x, y, c)
+	_flare_tex = ImageTexture.create_from_image(img)
+	return _flare_tex
 
 
 # ---------------------------------------------------------------- consultas

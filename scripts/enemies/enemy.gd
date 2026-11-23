@@ -30,7 +30,7 @@ func _ready() -> void:
 	max_health = stats.max_health
 	health = max_health
 	flying = stats.flying
-	var h := 1.0 if flying else 1.6
+	var h := maxf(1.0, stats.body_radius * 2.0) if flying else 1.6
 	build_body(stats.color, h, stats.body_radius, Color(0.95, 0.9, 0.2))
 	set_bar_color(Color(0.95, 0.3, 0.3))
 	if flying:
