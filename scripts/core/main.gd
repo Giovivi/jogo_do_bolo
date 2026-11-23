@@ -51,6 +51,10 @@ func _ready() -> void:
 		feixe.stats = FEIXE_STATS
 		feixe.position = level.feixe_cell_position
 		feixe.in_party = in_hub
+		# Já resgatado antes: na fase ele começa no grupo, ao lado do Fênix.
+		if not in_hub and Game.progress["feixe"]:
+			feixe.position = level.player_spawn + Vector3(1.2, 0, 0.8)
+			feixe.in_party = true
 		add_child(feixe)
 		party.add_hero(feixe)
 

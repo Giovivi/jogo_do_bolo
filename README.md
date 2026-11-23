@@ -23,7 +23,7 @@ Não há assets externos: a fase, os heróis e os inimigos são montados por có
 | Habilidade 1 / 2 | Q / E |
 | Especial | R (só com a barra cheia) |
 | Dash | Shift (recarga 2 s). Fênix: segurar Shift na beirada de um vão = planar |
-| Trocar de personagem | 1 a 4 ou Tab (recarga 3 s) |
+| Trocar de personagem | 1 a 4 ou Tab (recarga 0,2 s) |
 | Interagir / reanimar | F (segurar F perto de um aliado caído) |
 | Pausa | Esc |
 | Teste | F3 solta o Feixe na hora · F5 reinicia |
@@ -103,7 +103,7 @@ Cada golpe tem uma força (seção 3.6 da especificação de mecânicas). A for�
 
 1. **Entrada:** 4 soldados. Baú numa saliência atrás de um vão de 2 m (ensina o planar).
 2. **Triagem:** 6 soldados e 2 drones, 3 baús. Sala secreta ao norte atrás de um vão de 4 m. Pelo vidro ao sul dá para ver o cofre.
-3. **Celas:** use o console (F). Aguente 60 s de onda (6 soldados, 3 drones). O Feixe entra no grupo.
+3. **Celas:** use o console (F). Aguente 60 s de onda (6 soldados, 3 drones). O Feixe entra no grupo. Se ele já foi resgatado antes, começa a fase ao lado do Fênix e a cela fica aberta e vazia.
 4. **Hangar:** 4 drones e 1 soldado com escudo. Troque para o Feixe e acerte o interruptor da passarela alta: abre a porta de serviço ao sul.
 5. **Volta:** corredor com 2 soldados, porta blindada do cofre (laser do Feixe), baú raro, e a **Saída** com o baú final e a tela de resultado (tempo e baús 8/8).
 
