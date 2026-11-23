@@ -42,6 +42,33 @@ var _cell_events: Array[Dictionary] = []
 var _cell_done: bool = false
 
 
+func _ready() -> void:
+	# Depois do build() (também o da escola), cria as zonas de câmera.
+	_build_camera_zones.call_deferred()
+
+
+## Zonas de câmera por sala (tabela da seção 3.7).
+func _build_camera_zones() -> void:
+	var root := Node3D.new()
+	root.name = "ZonasDeCamera"
+	add_child(root)
+	if self is Escola:
+		CameraZone.make(root, -20, 8, 20, 24, CameraZone.Level.OPEN, "Frente")
+		CameraZone.make(root, 72, -14, 88, 4, CameraZone.Level.MEDIUM, "Saguao")
+		CameraZone.make(root, 56, -14, 71, 4, CameraZone.Level.MEDIUM, "Laboratorio")
+		CameraZone.make(root, 89, -14, 104, 4, CameraZone.Level.MEDIUM, "Treino")
+		CameraZone.make(root, 74, -24, 86, -14.5, CameraZone.Level.CLOSED, "Sala dos planos")
+		return
+	CameraZone.make(root, -8, -8, 8, 8, CameraZone.Level.MEDIUM, "Entrada")
+	CameraZone.make(root, 20, -10, 40, 10, CameraZone.Level.OPEN, "Triagem")
+	CameraZone.make(root, 25, -26, 35, -18, CameraZone.Level.CLOSED, "Sala secreta")
+	CameraZone.make(root, 50, -10, 70, 10, CameraZone.Level.OPEN, "Celas")
+	CameraZone.make(root, 78, -12, 102, 12, CameraZone.Level.OPEN, "Hangar")
+	CameraZone.make(root, 36, 20, 92, 26, CameraZone.Level.CLOSED, "Corredor de servico")
+	CameraZone.make(root, 24, 16, 36, 28, CameraZone.Level.CLOSED, "Cofre")
+	CameraZone.make(root, -6, 16, 6, 28, CameraZone.Level.CLOSED, "Saida")
+
+
 func build() -> void:
 	if seed_value == 0:
 		rng.randomize()
@@ -52,7 +79,6 @@ func build() -> void:
 	_candidates_root.name = "Candidatos"
 	add_child(_candidates_root)
 	_build_lighting()
-	_build_ground()
 	_build_entrada()
 	_build_triagem()
 	_build_secreta()
@@ -60,6 +86,8 @@ func build() -> void:
 	_build_hangar()
 	_build_volta()
 	_build_structure()
+	# Chão com buracos de verdade nos vãos.
+	_build_floor_collision()
 	Game.chests_total = get_tree().get_nodes_in_group("chests").size()
 
 
@@ -68,32 +96,37 @@ func build() -> void:
 func _build_entrada() -> void:
 	var c := Color(0.42, 0.44, 0.47)
 	_room(-8, -8, 8, 8, c, {"E": [[0.0, 4.0]]})
-	# Saliência com baú atrás de um vão de 2 m (ensina o planar).
+	# Saliência com baú atrás de um vão de 2 m (ensina o pulo).
 	_pit(-8, -5, -1, -3)
 	_wall(-1.25, -8, -0.75, -3, WALL_H)
 	_chest(Vector3(-4.5, 0, -6.5))
 	_label("1. Entrada", Vector3(0, 0, 7))
 	# 4 soldados em 2 grupos.
 	_enemy_group("Entrada A", SOLDIER, 2, [Vector3(4, 0, -3), Vector3(3, 0, 3)])
-	_enemy_group("Entrada B", SOLDIER, 2, [Vector3(6, 0, 5), Vector3(6, 0, -5)])
-	_hint(Rect2(-8, 0, 10, 8), "WASD move · mouse mira · clique ataca · Q e E habilidades · Shift dash")
-	_hint(Rect2(-8, -3, 7, 2.5), "Vão curto! Segure Shift na beirada para o Fênix planar.")
+	# Plataforma de 1 m no canto: sobe com um pulo.
+	_platform(3, -8, 8, -4, 1.0)
+	_enemy_group("Entrada B", SOLDIER, 2, [Vector3(6, 0, 5), Vector3(5.5, 1, -6)])
+	_hint(Rect2(-8, 0, 10, 8), "WASD move · Espaço pula · mouse mira · clique ataca · Q e E habilidades · Shift dash")
+	_hint(Rect2(-8, -3, 7, 2.5), "Vão de 2 m: pule (Espaço) com corrida até a saliência do baú.")
 	_corridor_x(8, 20, 0.0, c)
 
 
 func _build_triagem() -> void:
 	var c := Color(0.4, 0.43, 0.5)
 	_room(20, -10, 40, 10, c, {"W": [[0.0, 4.0]], "E": [[0.0, 4.0]], "N": [[30.0, 4.0]]}, {"S": [[30.0, 8.0]]})
-	_crate(25, -5, 2, 2)
+	# Níveis: mezanino de 1 m no fundo e plataforma de 2 m no canto
+	# nordeste (sobe pelo mezanino, degrau de 1 m), com baú no alto.
+	_platform(20, -10, 34, -6, 1.0)
+	_platform(34, -10, 40, -4, 2.0)
+	_crate(25, -3, 2, 2)
 	_crate(35, 4, 2, 2)
-	_crate(33, -6, 2, 1)
 	_crate(26, 5, 1, 2)
 	_label("2. Triagem", Vector3(30, 0, 8.5))
 	# 3 baús escolhidos entre 5 pontos candidatos.
-	_chest_candidates("Triagem baús", [Vector3(22, 0, -8), Vector3(38, 0, -8), Vector3(38, 0, 8), Vector3(22, 0, 8), Vector3(29, 0, -3)], 3)
-	_enemy_group("Triagem A", SOLDIER, 2, [Vector3(27, 0, -6), Vector3(26, 0, 2)])
-	_enemy_group("Triagem B", SOLDIER, 2, [Vector3(35, 0, -3), Vector3(34, 0, 7)])
-	_enemy_group("Triagem C", SOLDIER, 2, [Vector3(31, 0, 6), Vector3(30, 0, -8)])
+	_chest_candidates("Triagem baús", [Vector3(22, 1, -8), Vector3(38, 2, -8), Vector3(38, 0, 8), Vector3(22, 0, 8), Vector3(29, 0, -3)], 3)
+	_enemy_group("Triagem A", SOLDIER, 2, [Vector3(24, 1, -8), Vector3(26, 0, 2)])
+	_enemy_group("Triagem B", SOLDIER, 2, [Vector3(37, 2, -7), Vector3(34, 0, 7)])
+	_enemy_group("Triagem C", SOLDIER, 2, [Vector3(31, 0, 6), Vector3(31, 1, -8)])
 	_enemy_group("Triagem drones", DRONE, 2, [Vector3(36, 0, 0), Vector3(30, 0, 2)])
 	_hint(Rect2(24, 4, 12, 6), "Atrás do vidro blindado, um cofre... A porta dele não abre por aqui.")
 	_corridor_x(40, 50, 0.0, c)
@@ -109,7 +142,7 @@ func _build_secreta() -> void:
 	_room(25, -26, 35, -18, c, {"S": [[30.0, 4.0]]})
 	_chest(Vector3(30, 0, -23))
 	_label("sala secreta", Vector3(30, 0, -20))
-	_hint(Rect2(28, -11, 4, 1.5), "Vão de 4 m: segure Shift para planar até o outro lado.")
+	_hint(Rect2(28, -11, 4, 1.5), "Vão de 4 m: só o Fênix passa. Pule e segure Espaço para planar.")
 
 
 func _build_celas() -> void:
@@ -124,6 +157,9 @@ func _build_celas() -> void:
 	console.position = Vector3(60, 0, -2)
 	add_child(console)
 	console.activated.connect(_start_cell_unlock)
+	# Plataformas de 1 m nos cantos do sul, boas para defender a cela.
+	_platform(50, 5, 54, 10, 1.0)
+	_platform(66, 5, 70, 10, 1.0)
 	_hint(Rect2(50, -10, 20, 20), "A cela do Feixe! Use o console (F) para destravar e aguente 60 s.")
 	_corridor_x(70, 78, 0.0, c)
 
@@ -145,9 +181,12 @@ func _build_hangar() -> void:
 	service.setup(Vector3(4, WALL_H, 0.6), Color(0.75, 0.6, 0.2))
 	_service_door = service
 	sw.triggered.connect(_on_switch_triggered)
-	_crate(84, 4, 2, 2)
+	# Torre de caixas no sudoeste (1 m e 2 m), longe da passarela de 3 m.
+	_platform(80, 7, 84, 10, 1.0)
+	_platform(80, 4, 84, 7, 2.0)
+	_crate(87, 4, 2, 2)
 	_crate(96, -2, 2, 2)
-	_chest_candidates("Hangar baú", [Vector3(99, 0, 9), Vector3(81, 0, 9)], 1)
+	_chest_candidates("Hangar baú", [Vector3(99, 0, 9), Vector3(82, 2, 5.5)], 1)
 	_enemy_group("Hangar drones 1", DRONE, 2, [Vector3(86, 0, -4), Vector3(84, 0, -6)])
 	_enemy_group("Hangar drones 2", DRONE, 2, [Vector3(96, 0, -5), Vector3(98, 0, 2)])
 	_enemy_group("Hangar escudo", SHIELD_SOLDIER, 1, [Vector3(90, 0, 4), Vector3(92, 0, 0)])
@@ -299,7 +338,7 @@ func _update_hints(pos: Vector3) -> void:
 
 ## Paredes entre a câmera e o herói, perto dele, ficam transparentes.
 func _update_wall_fade(hero_pos: Vector3) -> void:
-	if Game.camera == null:
+	if Game.camera == null or not Game.rules.wall_fade:
 		return
 	var to_cam := Game.camera.global_transform.basis.z
 	to_cam.y = 0.0
@@ -497,6 +536,67 @@ func _build_lighting() -> void:
 	sun.light_energy = 1.0
 	sun.shadow_enabled = true
 	add_child(sun)
+
+
+## Plataforma maciça de altura "h" (em que se sobe pulando), com borda
+## clara no topo para ler a altura com a câmera baixa.
+func _platform(x0: float, z0: float, x1: float, z1: float, h: float) -> StaticBody3D:
+	var col := Color(0.5, 0.53, 0.58) if h <= 1.0 else Color(0.46, 0.49, 0.55)
+	var body := _box_body(Vector3((x0 + x1) * 0.5, h * 0.5, (z0 + z1) * 0.5), Vector3(x1 - x0, h, z1 - z0), col, Game.LAYER_WORLD)
+	body.name = "Plataforma"
+	var trim := Color(0.93, 0.8, 0.35)
+	var t := 0.1
+	var y := h + 0.01
+	_box_visual(Vector3((x0 + x1) * 0.5, y, z1 - t * 0.5), Vector3(x1 - x0, 0.02, t), trim)
+	_box_visual(Vector3((x0 + x1) * 0.5, y, z0 + t * 0.5), Vector3(x1 - x0, 0.02, t), trim)
+	_box_visual(Vector3(x0 + t * 0.5, y, (z0 + z1) * 0.5), Vector3(t, 0.02, z1 - z0), trim)
+	_box_visual(Vector3(x1 - t * 0.5, y, (z0 + z1) * 0.5), Vector3(t, 0.02, z1 - z0), trim)
+	return body
+
+
+## Colisão do chão feita por faixas de 1 m, sem os vãos: cair num vão é
+## cair de verdade (o herói volta para a última beirada segura).
+func _build_floor_collision() -> void:
+	var body := StaticBody3D.new()
+	body.name = "ChaoColisao"
+	body.collision_layer = Game.LAYER_WORLD
+	body.collision_mask = 0
+	add_child(body)
+	var bounds := Rect2()
+	var first := true
+	for r in _floor_rects:
+		bounds = r if first else bounds.merge(r)
+		first = false
+	var x_min := int(floor(bounds.position.x))
+	var x_max := int(ceil(bounds.end.x))
+	var z_min := int(floor(bounds.position.y))
+	var z_max := int(ceil(bounds.end.y))
+	for z in range(z_min, z_max):
+		var x := x_min
+		while x < x_max:
+			if not _is_solid_floor(x, z):
+				x += 1
+				continue
+			var start := x
+			while x < x_max and _is_solid_floor(x, z):
+				x += 1
+			var shape := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = Vector3(float(x - start), 1.0, 1.0)
+			shape.shape = box
+			shape.position = Vector3((float(start) + float(x)) * 0.5, -0.5, float(z) + 0.5)
+			body.add_child(shape)
+
+
+func _is_solid_floor(x: int, z: int) -> bool:
+	var p := Vector2(float(x) + 0.5, float(z) + 0.5)
+	for g in Game.gaps:
+		if g.has_point(p):
+			return false
+	for r in _floor_rects:
+		if r.has_point(p):
+			return true
+	return false
 
 
 func _build_ground() -> void:

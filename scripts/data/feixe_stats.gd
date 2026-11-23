@@ -19,7 +19,8 @@ extends HeroStats
 @export var pulse_damage: float = 15.0
 @export var pulse_range: float = 4.0
 @export var pulse_arc_degrees: float = 90.0
-@export var pulse_knockback: float = 9.0
+## Empurrão do Pulso, em metros (mais que o forte comum: é a função dele).
+@export var pulse_push_meters: float = 2.5
 
 @export_group("Rajada Máxima (R)")
 @export var blast_damage: float = 120.0

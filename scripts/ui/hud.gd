@@ -287,7 +287,8 @@ func _build_pause() -> Control:
 	col.add_child(obj)
 	var keys := UIStyle.label(
 		"Clique ataque · Q e E habilidades · R especial\n" +
-		"Shift dash · 1 a 4 ou Tab troca · F interage\n" +
+		"Espaço pulo (Fênix: segure no ar para planar) · Shift dash\n" +
+		"1 a 4 ou Tab troca · F interage\n" +
 		"Esc pausa · F5 reinicia (teste)", 21, Color(0.72, 0.76, 0.83), 0)
 	col.add_child(keys)
 	return s
