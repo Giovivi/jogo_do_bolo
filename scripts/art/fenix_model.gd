@@ -1,11 +1,14 @@
 class_name FenixModel
 extends Node3D
-## Modelo 3D do Fênix (forma humana) com esqueleto e animações.
+## Modelo 3D de herói (Fênix, Feixe) com esqueleto e animações.
 ## Malha feita no Blender; esqueleto e animações da Universal Animation
 ## Library do Quaternius (CC0). Escolhe sozinho parado / andando / correndo /
 ## no ar pelo movimento do herói; golpes e reações tocam por cima com play_once().
 
 const MODEL := preload("res://art/modelos/fenix_animado.glb")
+
+## Cena do glb a usar; o Feixe troca por feixe_animado.glb (mesmo esqueleto).
+var scene: PackedScene = MODEL
 
 const IDLE := "Idle"
 const WALK := "Walk"
@@ -23,7 +26,7 @@ var _one_shot: String = ""
 
 
 func _ready() -> void:
-	var m := MODEL.instantiate() as Node3D
+	var m := scene.instantiate() as Node3D
 	# O glb olha para +Z; os atores do jogo olham para -Z.
 	m.rotation_degrees.y = 180.0
 	add_child(m)
