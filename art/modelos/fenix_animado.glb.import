@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bf366x3hwcswr"
-path="res://.godot/imported/fenix_humano.glb-0c62baa87a487c161da191205c8e80bc.scn"
+uid="uid://cskc42xa4cg0x"
+path="res://.godot/imported/fenix_animado.glb-e89113c07a0082ee8c2fa651712bfa17.scn"
 
 [deps]
 
-source_file="res://art/modelos/fenix_humano.glb"
-dest_files=["res://.godot/imported/fenix_humano.glb-0c62baa87a487c161da191205c8e80bc.scn"]
+source_file="res://art/modelos/fenix_animado.glb"
+dest_files=["res://.godot/imported/fenix_animado.glb-e89113c07a0082ee8c2fa651712bfa17.scn"]
 
 [params]
 
