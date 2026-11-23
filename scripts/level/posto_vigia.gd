@@ -74,11 +74,9 @@ func _build_camera_zones() -> void:
 func _zone_table() -> Array:
 	if self is Escola:
 		return [
-			[-20, 8, 20, 24, CameraZone.Level.OPEN, "Frente"],
-			[72, -14, 88, 4, CameraZone.Level.MEDIUM, "Saguao"],
-			[56, -14, 71, 4, CameraZone.Level.MEDIUM, "Laboratorio"],
-			[89, -14, 104, 4, CameraZone.Level.MEDIUM, "Treino"],
-			[74, -24, 86, -14.5, CameraZone.Level.CLOSED, "Sala dos planos"],
+			[-38, 22, 118, 46, CameraZone.Level.OPEN, "Frente"],
+			[0, 0, 80, 22, CameraZone.Level.MEDIUM, "Escola"],
+			[96, 2, 112, 14, CameraZone.Level.MEDIUM, "Garagem"],
 		]
 	return [
 		[-8, -8, 8, 8, CameraZone.Level.MEDIUM, "Entrada"],
