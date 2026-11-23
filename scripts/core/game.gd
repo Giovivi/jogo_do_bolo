@@ -217,15 +217,20 @@ func shake(amount: float, duration: float) -> void:
 
 ## Pausa e tremor de um acerto (seção 3.6). Só o que o herói controlado
 ## faz, ou sofre, mexe com o tempo e a câmera; a IA nunca.
-func impact_feedback(strength: int, source: Node, target: Node, killed: bool) -> void:
+func impact_feedback(strength: int, source: Node, target: Node, killed: bool, info: Dictionary = {}) -> void:
 	var s := clampi(strength, 0, 2)
 	if Impact.from_player(source):
 		var frames: int = Impact.HITSTOP_FRAMES[s]
+		var sh: Array = Impact.SHAKE[s]
+		if info.get("melee", false):
+			var heavy := 1 if s >= Impact.STRONG else 0
+			var ramp := minf(2.0, 1.0 + Impact.MELEE_COMBO_RAMP * float(info.get("combo", 0)))
+			frames = roundi(Impact.MELEE_HITSTOP_FRAMES[heavy] * ramp)
+			sh = Impact.MELEE_SHAKE[heavy]
 		if killed:
 			frames = maxi(frames, Impact.KILL_HITSTOP_FRAMES)
 		if frames > 0:
 			hitstop(float(frames) / 60.0)
-		var sh: Array = Impact.SHAKE[s]
 		shake(sh[0], sh[1])
 	elif target is Hero and (target as Hero).controlled and s >= Impact.STRONG:
 		var light: Array = Impact.SHAKE[Impact.STRONG]
