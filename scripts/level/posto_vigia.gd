@@ -161,15 +161,22 @@ func _build_celas() -> void:
 	for cx in [57.5, 62.5]:
 		var bar := _wall(cx - 0.25, -10, cx + 0.25, -4.5, WALL_H, Color(0.75, 0.8, 0.9))
 		Look.texture_std(bar.get_child(1).material_override, "MetalPlates014", 1.6, Color(0.75, 0.8, 0.9))
-	_cage_front = _wall(57.25, -4.75, 62.75, -4.25, WALL_H, Color(0.5, 0.75, 0.95, 0.45))
-	var console := CellConsole.new()
-	console.position = Vector3(60, 0, -2)
-	add_child(console)
-	console.activated.connect(_start_cell_unlock)
+	# Feixe já resgatado em outra ida: a cela fica aberta e vazia, sem
+	# console nem defesa.
+	var already_rescued: bool = Game.progress.get("feixe", false)
+	if already_rescued:
+		_cell_done = true
+	else:
+		_cage_front = _wall(57.25, -4.75, 62.75, -4.25, WALL_H, Color(0.5, 0.75, 0.95, 0.45))
+		var console := CellConsole.new()
+		console.position = Vector3(60, 0, -2)
+		add_child(console)
+		console.activated.connect(_start_cell_unlock)
 	# Plataformas de 1 m nos cantos do sul, boas para defender a cela.
 	_platform(50, 5, 54, 10, 1.0)
 	_platform(66, 5, 70, 10, 1.0)
-	_hint(Rect2(50, -10, 20, 20), "A cela do Feixe! Use o console (F) para destravar e aguente 60 s.")
+	if not already_rescued:
+		_hint(Rect2(50, -10, 20, 20), "A cela do Feixe! Use o console (F) para destravar e aguente 60 s.")
 	_corridor_x(70, 78, 0.0, c)
 
 

@@ -38,7 +38,7 @@ extends Resource
 @export var backdrop_height: float = 6.0
 
 @export_group("Troca de personagem")
-@export var switch_cooldown: float = 3.0
+@export var switch_cooldown: float = 0.2
 @export var camera_slide_time: float = 0.25
 
 @export_group("Queda e reanimação")
