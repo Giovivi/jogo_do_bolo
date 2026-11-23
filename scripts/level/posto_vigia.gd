@@ -42,6 +42,33 @@ var _cell_events: Array[Dictionary] = []
 var _cell_done: bool = false
 
 
+func _ready() -> void:
+	# Depois do build() (também o da escola), cria as zonas de câmera.
+	_build_camera_zones.call_deferred()
+
+
+## Zonas de câmera por sala (tabela da seção 3.7).
+func _build_camera_zones() -> void:
+	var root := Node3D.new()
+	root.name = "ZonasDeCamera"
+	add_child(root)
+	if self is Escola:
+		CameraZone.make(root, -20, 8, 20, 24, CameraZone.Level.OPEN, "Frente")
+		CameraZone.make(root, 72, -14, 88, 4, CameraZone.Level.MEDIUM, "Saguao")
+		CameraZone.make(root, 56, -14, 71, 4, CameraZone.Level.MEDIUM, "Laboratorio")
+		CameraZone.make(root, 89, -14, 104, 4, CameraZone.Level.MEDIUM, "Treino")
+		CameraZone.make(root, 74, -24, 86, -14.5, CameraZone.Level.CLOSED, "Sala dos planos")
+		return
+	CameraZone.make(root, -8, -8, 8, 8, CameraZone.Level.MEDIUM, "Entrada")
+	CameraZone.make(root, 20, -10, 40, 10, CameraZone.Level.OPEN, "Triagem")
+	CameraZone.make(root, 25, -26, 35, -18, CameraZone.Level.CLOSED, "Sala secreta")
+	CameraZone.make(root, 50, -10, 70, 10, CameraZone.Level.OPEN, "Celas")
+	CameraZone.make(root, 78, -12, 102, 12, CameraZone.Level.OPEN, "Hangar")
+	CameraZone.make(root, 36, 20, 92, 26, CameraZone.Level.CLOSED, "Corredor de servico")
+	CameraZone.make(root, 24, 16, 36, 28, CameraZone.Level.CLOSED, "Cofre")
+	CameraZone.make(root, -6, 16, 6, 28, CameraZone.Level.CLOSED, "Saida")
+
+
 func build() -> void:
 	if seed_value == 0:
 		rng.randomize()
@@ -311,7 +338,7 @@ func _update_hints(pos: Vector3) -> void:
 
 ## Paredes entre a câmera e o herói, perto dele, ficam transparentes.
 func _update_wall_fade(hero_pos: Vector3) -> void:
-	if Game.camera == null:
+	if Game.camera == null or not Game.rules.wall_fade:
 		return
 	var to_cam := Game.camera.global_transform.basis.z
 	to_cam.y = 0.0

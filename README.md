@@ -115,6 +115,14 @@ A câmera padrão olha de frente para a parede do fundo, com 22° de inclinaçã
 - A estrutura do lado da câmera fica cortada a 0,5 m.
 - O vidro aparece como uma mureta de 1 m, mas continua bloqueando a passagem.
 
+**Câmera dinâmica (seção 3.7):**
+- O herói fica a ~30% da altura da tela, contados de baixo, para mostrar mais do fundo da sala (`camera_hero_screen_fraction`).
+- "Câmera segue a mira": o foco anda até 1,5 m na direção do cursor, com suavidade. O valor vai de 0 a 3 m (`camera_aim_follow`, que o menu de configurações pode mudar).
+- Cada sala tem uma zona de câmera (`CameraZone`, nó `ZonasDeCamera`) com um de 3 níveis: aberto 100%, médio 80% e fechado 65% da distância. O zoom aproxima a câmera e mantém os 22°, sem mexer no FOV. Mudar `camera_zoom_medium` ou `camera_zoom_closed` muda todas as salas daquele nível.
+- A troca de zoom leva 0,8 s, com aceleração e freio. Ela só acontece depois que o herói entra 1 m na outra sala, e os corredores sem zona mantêm o nível anterior.
+- Na troca de herói, o deslize de 0,25 s já leva o zoom da sala do novo herói. Combate e especiais não mexem no zoom.
+- Nada fica transparente na frente do herói. O efeito antigo está desligado (`wall_fade`), e o corte baixo das paredes da frente continua.
+
 Em `data/regras.tres` (grupos "Câmera" e "Cenário em corte") dá para ajustar o giro, a inclinação, a perspectiva, a abertura (`camera_fov`), o enquadramento e as alturas do corte. Para voltar à isométrica antiga, use giro 45, inclinação 30 e `camera_perspective` desligado. A mira pelo mouse funciona em todos os modos.
 
 ## Onde ajustar os números
