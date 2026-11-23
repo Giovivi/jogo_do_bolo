@@ -3,6 +3,9 @@ extends Hero
 ## Feixe: distância e precisão. Tiro Óptico, Laser Contínuo,
 ## Pulso de Repulsão e Rajada Máxima.
 
+## Invulnerável por este tempo ao disparar a Rajada Máxima.
+const BLAST_INVULNERABLE := 0.35
+
 var _laser_active: bool = false
 var _laser_time: float = 0.0
 var _laser_tick: float = 0.0

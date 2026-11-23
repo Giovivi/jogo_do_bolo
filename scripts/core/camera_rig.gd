@@ -124,7 +124,7 @@ func _zone_zoom() -> float:
 func _update_zone() -> void:
 	if _slide_t < 1.0:
 		return
-	var inset := Game.rules.camera_zone_hysteresis
+	var inset: float = Game.rules.camera_zone_hysteresis
 	if _zone == null:
 		inset = 0.0
 	var z := _zone_at(target.global_position, inset)
@@ -163,14 +163,14 @@ func _tick_zoom(delta: float) -> void:
 ## câmera não "correr atrás" do próprio deslocamento.
 func _update_aim_offset(delta: float) -> void:
 	var want := Vector3.ZERO
-	var n := Game.rules.camera_aim_follow
+	var n: float = Game.rules.camera_aim_follow
 	var hero := target as Hero
 	if n > 0.0 and hero != null and hero.controlled and not hero.is_dead:
 		var vp := get_viewport()
 		var size := vp.get_visible_rect().size
 		if size.y > 1.0:
-			var anchor := Vector2(size.x * 0.5, size.y * (1.0 - Game.rules.camera_hero_screen_fraction))
-			var m := (vp.get_mouse_position() - anchor) / (size.y * 0.5)
+			var anchor: Vector2 = Vector2(size.x * 0.5, size.y * (1.0 - Game.rules.camera_hero_screen_fraction))
+			var m: Vector2 = (vp.get_mouse_position() - anchor) / (size.y * 0.5)
 			m = m.limit_length(1.0)
 			var axes := Game.screen_axes()
 			want = (axes[1] * m.x - axes[0] * m.y) * n
@@ -182,15 +182,15 @@ func _update_aim_offset(delta: float) -> void:
 func _place() -> void:
 	var r := Game.rules
 	var b := camera.global_transform.basis
-	var d := distance * _zoom
+	var d: float = distance * _zoom
 	# Altura visível no plano do herói, para pôr o herói a ~30% de baixo.
-	var view_h := r.camera_view_height
+	var view_h: float = r.camera_view_height
 	if camera.projection == Camera3D.PROJECTION_PERSPECTIVE:
 		view_h = 2.0 * d * tan(deg_to_rad(camera.fov) * 0.5)
 	else:
 		camera.size = r.camera_view_height * _zoom
 		view_h = camera.size
-	var lift := b.y * view_h * (0.5 - r.camera_hero_screen_fraction)
+	var lift: Vector3 = b.y * view_h * (0.5 - r.camera_hero_screen_fraction)
 	var offset := Vector3.ZERO
 	if _shake_time > 0.0:
 		var k := _shake_time / maxf(_shake_total, 0.001)
