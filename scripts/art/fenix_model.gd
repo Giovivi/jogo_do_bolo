@@ -80,7 +80,7 @@ func _on_finished(anim_name: String) -> void:
 		_one_shot = ""
 
 
-## Penas e casaco usam a cor por vértice; o fogo fica sem sombra para brilhar.
+## Texturas vêm do glb; o fogo fica sem sombra para brilhar.
 func _fix_materials(node: Node) -> void:
 	if node is MeshInstance3D:
 		var mi := node as MeshInstance3D
@@ -89,16 +89,18 @@ func _fix_materials(node: Node) -> void:
 			if src == null:
 				continue
 			var mat_name := src.resource_name
-			if mat_name == "fogo":
+			# A cor (com a textura) já vem na imagem do glb; não usa cor por vértice.
+			if mat_name == "fogo" and src is StandardMaterial3D:
 				var fire := StandardMaterial3D.new()
 				fire.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-				fire.vertex_color_use_as_albedo = true
+				fire.albedo_texture = (src as StandardMaterial3D).albedo_texture
 				fire.cull_mode = BaseMaterial3D.CULL_DISABLED
 				mi.set_surface_override_material(i, fire)
-			elif mat_name == "penas" and src is StandardMaterial3D:
-				var feathers := (src as StandardMaterial3D).duplicate() as StandardMaterial3D
-				feathers.vertex_color_use_as_albedo = true
-				feathers.cull_mode = BaseMaterial3D.CULL_DISABLED
-				mi.set_surface_override_material(i, feathers)
+			elif src is StandardMaterial3D:
+				var m := (src as StandardMaterial3D).duplicate() as StandardMaterial3D
+				m.vertex_color_use_as_albedo = false
+				if mat_name == "penas":
+					m.cull_mode = BaseMaterial3D.CULL_DISABLED
+				mi.set_surface_override_material(i, m)
 	for child in node.get_children():
 		_fix_materials(child)
