@@ -3,7 +3,7 @@ extends Control
 ## Tela de Opções (abre pelo menu inicial e pela pausa). Vale na hora e fica
 ## até fechar o jogo.
 ## - Câmera segue a mira: 0 a 3 m, passos de 0,5 m (Game.rules.camera_aim_follow)
-## - Tremor da câmera: liga/desliga (Game.screen_shake)
+## - Tremor da câmera: liga/desliga (Game.rules.screen_shake)
 
 signal closed
 
@@ -103,8 +103,8 @@ func _read_current() -> void:
 		return
 	if AIM_PROPERTY in game.rules:
 		aim_follow = float(game.rules.get(AIM_PROPERTY))
-	if SHAKE_PROPERTY in game:
-		shake_on = bool(game.get(SHAKE_PROPERTY))
+	if SHAKE_PROPERTY in game.rules:
+		shake_on = bool(game.rules.get(SHAKE_PROPERTY))
 
 
 ## Aplica os valores guardados (chamado ao montar a cena, caso o jogo recarregue).
@@ -115,8 +115,8 @@ static func apply_saved() -> void:
 		return
 	if AIM_PROPERTY in game.rules:
 		game.rules.set(AIM_PROPERTY, aim_follow)
-	if SHAKE_PROPERTY in game:
-		game.set(SHAKE_PROPERTY, shake_on)
+	if SHAKE_PROPERTY in game.rules:
+		game.rules.set(SHAKE_PROPERTY, shake_on)
 
 
 func _item_label(title_text: String, hint: String) -> Control:
