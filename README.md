@@ -22,7 +22,7 @@ Não há assets externos: a fase, os heróis e os inimigos são montados por có
 | Ataque básico | Botão esquerdo (segurar repete) |
 | Habilidade 1 / 2 | Q / E |
 | Especial | R (só com a barra cheia) |
-| Dash | Shift (recarga 1,5 s). Fênix: segurar Shift na beirada de um vão = planar |
+| Dash | Shift (recarga 2 s). Fênix: segurar Shift na beirada de um vão = planar |
 | Trocar de personagem | 1 a 4 ou Tab (recarga 3 s) |
 | Interagir / reanimar | F (segurar F perto de um aliado caído) |
 | Pausa | Esc |
@@ -61,10 +61,11 @@ O documento de design atualizado está em `docs/Projeto_Mutantes_GDD_v0.3.pdf`.
 - Passivas: Renascer (1x por fase volta com 50% e explode 40 em volta) e Regeneração (3/s depois de 4 s fora de combate).
 
 **Feixe** (resgatado na sala 3)
-- Clique: tiro óptico de 8, alcance 15 m. Aciona o interruptor do hangar.
-- Q Laser Contínuo: segurar, 12/s por até 3 s, anda devagar. Corta a porta blindada do cofre.
-- E Pulso de Repulsão: cone curto que empurra, 15 de dano.
-- R Rajada Máxima: linha reta que atravessa tudo, 120 de dano.
+Tudo em raio laser vermelho: um raio fino com núcleo claro, e um clarão estrelado que sai do rosto a cada disparo.
+- Clique, Raio Laser: instantâneo, 8 de dano, alcance de 15 m, para no primeiro inimigo ou parede. Aciona o interruptor do hangar.
+- Q, Raio Forte: segurar, 12/s por até 3 s, anda devagar. É grosso, atravessa todos os inimigos da linha e interrompe quem acerta. Corta a porta blindada do cofre.
+- E, Cone de Raios: leque de 90° com 6 m de alcance, 15 de dano. Empurra 2,5 m e acerta drones.
+- R, Suprema em Círculo: explosão de raios com raio de 14 m em volta do Feixe, que pega a sala toda. Dá 120 de dano e derruba.
 
 **Grupo**
 - Troca 1 a 4 assume o aliado onde ele está, a câmera desliza em ~0,25 s, sem ataque de entrada.
@@ -74,7 +75,8 @@ O documento de design atualizado está em `docs/Projeto_Mutantes_GDD_v0.3.pdf`.
 
 **Inimigos**
 - Soldado (40 de vida): anda até o herói mais perto e atira a média distância. A variante com escudo só toma dano por trás ou de habilidades.
-- Drone (25 de vida): voa, fica a 8–10 m e atira.
+- Drone (25 de vida): voa a 2 m de altura, fica a 8–10 m e atira.
+- Mira pela tela: com o cursor em cima de um inimigo, o herói mira nele (drone incluído), com ~1 m de folga. Antes, a mira caía no chão atrás do drone.
 - Os tiros inimigos têm um pequeno aviso (o inimigo "incha") e podem ser desviados com o dash, que deixa invulnerável.
 
 ## Impacto dos golpes
@@ -84,17 +86,17 @@ Cada golpe tem uma força (seção 3.6 da especificação de mecânicas). A for�
 | Força | Golpes | Pausa | Inimigo | Câmera |
 |---|---|---|---|---|
 | Fraco | garras 1 e 2, tiro óptico, laser | nenhuma | ~20 cm (laser não empurra) | parada |
-| Forte | 3º golpe das garras, Asas de Fogo, Pulso | ~3 quadros | ~0,5 m e interrompido ~0,4 s (perde o tiro que estava preparando) | tremor leve |
-| Especial | Mergulho, Renascer, Rajada Máxima | ~6 quadros | derrubado ~1 s | tremor forte |
+| Forte | 3º golpe das garras, Asas de Fogo, Raio Forte, Cone de Raios | ~3 quadros | ~0,5 m e interrompido ~0,4 s (perde o tiro que estava preparando) | tremor leve |
+| Especial | Mergulho, Renascer, Suprema em Círculo | ~6 quadros | derrubado ~1 s | tremor forte |
 | Golpe que mata | qualquer um | pelo menos ~4 quadros | explosão curta | conforme a força |
 
 - Só os golpes do herói que você controla pausam o jogo e tremem a câmera. Os da IA não.
-- O Pulso empurra mais (2,5 m, `pulse_push_meters` em `data/feixe.tres`), porque essa é a função dele.
+- O Cone de Raios empurra mais (2,5 m, `pulse_push_meters` em `data/feixe.tres`), porque essa é a função dele.
 - O drone não cai: é jogado para trás e balança.
 - O escudo frontal só recua o soldado, sem interromper.
-- Quem apanha pisca em vermelho. No ponto do acerto aparece uma chama dourada (comum) ou azul (forte) do Fênix, e uma faísca ciano ou vermelha do Feixe.
+- Quem apanha pisca em vermelho. No ponto do acerto aparece uma chama dourada (comum) ou azul (forte) do Fênix, e uma faísca vermelha do Feixe. O Raio Forte interrompe sem pausar o jogo a cada pulso.
 - O herói: golpe comum só dá um tranquinho. Ataque forte interrompe por ~0,3 s, e o dash cancela a interrupção. Não há invulnerabilidade depois de apanhar.
-- A Rajada Máxima deixa o Feixe invulnerável por ~0,35 s.
+- A Suprema em Círculo deixa o Feixe invulnerável por ~0,35 s.
 - O tremor de câmera pode ser desligado em `data/regras.tres` (`screen_shake`). Os números de cada força ficam em `scripts/combat/impact.gd`.
 
 ## Roteiro da fase (10 a 15 min)

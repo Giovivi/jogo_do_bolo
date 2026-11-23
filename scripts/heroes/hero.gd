@@ -12,6 +12,8 @@ const GRAVITY := 40.0
 const COYOTE_TIME := 0.12
 ## Abaixo desta altura o herói caiu num vão.
 const FALL_LIMIT_Y := -2.5
+## Até onde a mira pela tela procura inimigos (m).
+const AIM_RANGE := 18.0
 
 @export var stats: HeroStats
 
@@ -47,6 +49,8 @@ var _stun_time: float = 0.0
 ## Cores do efeito no ponto do acerto: golpe comum e golpe forte/especial.
 var impact_color: Color = Color(1, 1, 1, 0.9)
 var impact_color_strong: Color = Color(1, 1, 1, 0.9)
+## Inimigo embaixo do cursor (só no herói controlado), ou null.
+var aim_target: Actor = null
 
 var _select_ring: MeshInstance3D
 var _down_marker: Node3D
@@ -113,6 +117,8 @@ func _build_down_marker() -> void:
 func set_controlled(value: bool) -> void:
 	controlled = value
 	_select_ring.visible = value
+	if not value:
+		aim_target = null
 	if value:
 		ai_state = AIState.FOLLOW
 
@@ -264,6 +270,11 @@ func _process_player(_delta: float) -> Vector3:
 	if move.length() > 1.0:
 		move = move.normalized()
 	var aim := Game.mouse_ground_point(global_position.y)
+	# Mira pela tela: com o cursor em cima de um inimigo (drone incluído),
+	# o herói mira nele, e não no chão atrás dele.
+	aim_target = Game.aim_target(self, AIM_RANGE)
+	if aim_target != null:
+		aim = aim_target.global_position
 	face_towards(aim)
 
 	if Input.is_action_just_pressed("jump"):
