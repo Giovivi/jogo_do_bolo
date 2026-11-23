@@ -723,5 +723,6 @@ func _physics_process(_delta: float) -> void:
 		return
 	var hero: Hero = party.controlled_hero
 	_update_wall_fade(hero.global_position)
+	_update_cutaway(hero.global_position)
 	_update_hints(hero.global_position)
 	_update_paredes_laterais(hero.global_position)
