@@ -188,7 +188,9 @@ func take_damage(amount: float, source: Node = null, info: Dictionary = {}) -> f
 	# Quem apanha pisca em vermelho.
 	_flash_time = 0.12
 	_react_to_hit(strength, dir, source, info, killed)
-	Game.impact_feedback(strength, source, self, killed)
+	# "quiet": reação completa no alvo, mas sem pausa e tremor (raio contínuo).
+	var feedback_strength: int = Impact.WEAK if info.get("quiet", false) else strength
+	Game.impact_feedback(feedback_strength, source, self, killed)
 	damaged.emit(amount)
 	hit_reacted.emit(strength)
 	_on_damaged(amount, source)

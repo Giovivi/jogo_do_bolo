@@ -17,7 +17,7 @@ extends Resource
 @export_group("Dash")
 @export var dash_distance: float = 4.0
 @export var dash_time: float = 0.15
-@export var dash_cooldown: float = 1.5
+@export var dash_cooldown: float = 2.0
 
 @export_group("Barra do especial")
 @export var special_max: float = 300.0
