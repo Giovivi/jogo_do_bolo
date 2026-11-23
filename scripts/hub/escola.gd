@@ -22,6 +22,8 @@ var outside_door_spot := Vector3(0, 0, 10)
 var _floor_mat: Material
 var _lamp_scale := 1.0
 var _lab_door: Door
+## Salas cobertas pelo telhado até a primeira visita: nome -> {rect, node}.
+var _coberturas: Dictionary = {}
 
 
 func build() -> void:
@@ -48,6 +50,7 @@ func build() -> void:
 		w["color"] = c
 		(w["mat"] as StandardMaterial3D).albedo_color = c
 	Game.chests_total = 0
+	_build_coberturas()
 
 
 func rescued_count() -> int:
@@ -167,6 +170,20 @@ func _build_saguao() -> void:
 	# Passarela quebrada sobre o saguão: vão de 4 m, só planando.
 	_solid_piece(Vector3(x0 + 4.25, MEZ_Y - 0.1, -2.0), Vector3(3.5, 0.2, 1.6), dark_wood)
 	_solid_piece(Vector3(x1 - 4.25, MEZ_Y - 0.1, -2.0), Vector3(3.5, 0.2, 1.6), dark_wood)
+	# Apoios: viga presa ao mezanino, escora diagonal e pontas lascadas no vão.
+	for side in [-1.0, 1.0]:
+		var edge: float = IN_X + side * 5.5  # borda interna do mezanino
+		var tip: float = IN_X + side * 2.0   # ponta da tábua, no vão
+		Look.piece(self, Look.box(Vector3(3.6, 0.18, 0.2)), wood, Vector3((edge + tip) * 0.5, MEZ_Y - 0.29, -2.55))
+		Look.piece(self, Look.box(Vector3(3.6, 0.18, 0.2)), wood, Vector3((edge + tip) * 0.5, MEZ_Y - 0.29, -1.45))
+		# Dois pontaletes até o chão e uma travessa em X entre eles.
+		var post_x: float = tip - side * 0.5
+		for pz in [-2.6, -1.4]:
+			_solid_piece(Vector3(post_x, (MEZ_Y - 0.38) * 0.5, pz), Vector3(0.2, MEZ_Y - 0.38, 0.2), wood)
+		Look.piece(self, Look.box(Vector3(0.08, 3.4, 0.1)), wood, Vector3(post_x, MEZ_Y * 0.5 - 0.2, -2.0), Vector3(20.0, 0, 0))
+		Look.piece(self, Look.box(Vector3(0.08, 3.4, 0.1)), wood, Vector3(post_x, MEZ_Y * 0.5 - 0.2, -2.0), Vector3(-20.0, 0, 0))
+		Look.piece(self, Look.box(Vector3(0.7, 0.06, 0.3)), dark_wood, Vector3(tip - side * 0.1, MEZ_Y - 0.25, -2.4), Vector3(0, side * 12.0, side * -24.0))
+		Look.piece(self, Look.box(Vector3(0.5, 0.06, 0.26)), dark_wood, Vector3(tip - side * 0.05, MEZ_Y - 0.2, -1.6), Vector3(0, side * -8.0, side * -32.0))
 	# Caixas para treinar o pulo (1 m e 2 m).
 	var crate := Look.wood(Color(0.45, 0.34, 0.22))
 	_solid_piece(Vector3(x1 - 3.5, 0.5, 1.0), Vector3(1.6, 1.0, 1.6), crate)
@@ -345,6 +362,66 @@ func _build_treino() -> void:
 	_hint(Rect2(89, -4, 3, 4), "O ginásio está cheio de entulho. Um mutante forte poderia liberar o treino.")
 
 
+# ================================================================ salas cobertas
+
+## Laboratório, treino e sala dos oficiais ficam sob o telhado com mato até
+## o grupo entrar pela primeira vez. Depois ficam abertas para sempre.
+func _build_coberturas() -> void:
+	var visited: Dictionary = Game.progress.get("salas_vistas", {})
+	Game.progress["salas_vistas"] = visited
+	var rooms := {
+		"laboratorio": Rect2(56, -14, 15, 18),
+		"treino": Rect2(89, -14, 15, 18),
+		"oficiais": Rect2(74, -24, 12, 9.5),
+	}
+	var roof := Look.surface(Color(0.42, 0.4, 0.37), {"outline": 0.04, "moss_amount": 0.7, "variation": 0.3, "noise_scale": 2.0})
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.05, 0.05, 0.06)
+	dark.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var tile := Look.surface(Color(0.5, 0.27, 0.2), {"outline": 0.03, "variation": 0.35, "moss_amount": 0.5})
+	var k := 0
+	for key in rooms:
+		if visited.get(key, false):
+			continue
+		var r: Rect2 = rooms[key]
+		var root := Node3D.new()
+		root.name = "Telhado_" + key
+		add_child(root)
+		var h := WALL_H + 0.05
+		var c := Vector3(r.position.x + r.size.x * 0.5, 0, r.position.y + r.size.y * 0.5)
+		# Miolo escuro (esconde o interior pelas portas) e laje com mato.
+		Look.piece(root, Look.box(Vector3(r.size.x - 0.05, h - 0.05, r.size.y - 0.05)), dark, c + Vector3(0, h * 0.5, 0))
+		Look.piece(root, Look.box(Vector3(r.size.x, 0.3, r.size.y)), roof, c + Vector3(0, h + 0.15, 0))
+		# Telhas soltas e mato crescendo em cima.
+		for i in 6:
+			var px := r.position.x + 1.2 + rng.randf() * (r.size.x - 2.4)
+			var pz := r.position.y + 1.2 + rng.randf() * (r.size.y - 2.4)
+			Look.piece(root, Look.box(Vector3(1.4, 0.12, 0.9)), tile, Vector3(px, h + 0.36, pz), Vector3(0, rng.randf_range(0, 90), rng.randf_range(-6, 6)))
+		for i in 5:
+			var bx := r.position.x + 1.0 + rng.randf() * (r.size.x - 2.0)
+			var bz := r.position.y + 1.0 + rng.randf() * (r.size.y - 2.0)
+			Look.bush(root, Vector3(bx, h + 0.3, bz), rng.randf_range(0.7, 1.2), k * 10 + i)
+		_coberturas[key] = {"rect": r, "node": root}
+		k += 1
+
+
+func _update_coberturas(pos: Vector3) -> void:
+	if _coberturas.is_empty():
+		return
+	var p := Vector2(pos.x, pos.z)
+	for key in _coberturas.keys():
+		var r: Rect2 = _coberturas[key]["rect"]
+		if not r.grow(-0.3).has_point(p):
+			continue
+		var node: Node3D = _coberturas[key]["node"]
+		_coberturas.erase(key)
+		Game.progress["salas_vistas"][key] = true
+		# O telhado sobe e some.
+		var tw := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_property(node, "position:y", 6.0, 0.45)
+		tw.tween_callback(node.queue_free)
+
+
 # ================================================================ peças do hub
 
 ## Chão com o material atual (_floor_mat), sem linhas de grade.
@@ -521,3 +598,4 @@ func _physics_process(_delta: float) -> void:
 	var hero: Hero = party.controlled_hero
 	_update_wall_fade(hero.global_position)
 	_update_hints(hero.global_position)
+	_update_coberturas(hero.global_position)
