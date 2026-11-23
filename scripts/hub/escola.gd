@@ -16,6 +16,10 @@ const IN_X := 80.0  # centro do saguão
 const MEZ_Y := 3.5
 const LAMP := Color(1.0, 0.76, 0.42)
 
+const CAMPO_X := 34.0     # o campo vai de -34 a 34 em x
+const CAMPO_Z0 := -26.0   # e de -26 (atrás do prédio) até a frente do pátio
+const PREDIO_Z0 := -8.0   # fundo do prédio
+
 var inside_spawn := Vector3(IN_X, 0, 2)
 var outside_door_spot := Vector3(0, 0, 10)
 
@@ -24,6 +28,7 @@ var _lamp_scale := 1.0
 var _lab_door: Door
 ## Parede da frente das salas laterais: {rect, mat} (some com o grupo dentro).
 var _frentes: Array[Dictionary] = []
+var _predio: Node3D
 var _porta_oficiais: Array = []
 var _mapa: MesaMapa
 
@@ -66,8 +71,14 @@ func _build_frente() -> void:
 	_floor(-20, 8, 20, 24, Color.WHITE)
 	# Caminho de cimento rachado até a porta.
 	_box_visual_mat(Vector3(0, 0.01, 16), Vector3(4, 0.02, 16), Look.tiles({"tile_a": Color(0.5, 0.49, 0.45), "tile_b": Color(0.46, 0.45, 0.42), "tile_size": 1.0, "grass_amount": 0.3}))
-	_build_fachada()
 	_build_limites_frente()
+	_build_predio()
+	var n0 := get_child_count()
+	_build_fachada()
+	for c in get_children().slice(n0):
+		(c as Node).reparent(_predio)
+	# Atrás do prédio, ele sai da frente da câmera.
+	_frentes.append({"rect": Rect2(-CAMPO_X, CAMPO_Z0, CAMPO_X * 2.0, PREDIO_Z0 - CAMPO_Z0 + 0.5), "nodes": [_predio], "faded": false})
 	Look.tree(self, Vector3(-15, 0, 12), 1.3, 1)
 	Look.tree(self, Vector3(16, 0, 11), 1.1, 2)
 	Look.tree(self, Vector3(-11, 0, 21), 0.9, 3)
@@ -91,12 +102,85 @@ func _build_frente() -> void:
 ## Limites do pátio: a fachada e a estrutura em volta só eram desenho, sem colisão,
 ## e o grupo atravessava a escola. Agora seguram o grupo dentro do pátio.
 func _build_limites_frente() -> void:
-	# Fachada: parede sólida atrás das janelas e da porta.
-	_invisible_wall(Vector3(0, 4.0, 7.0), Vector3(40.0, 8.0, 1.8))
-	# Laterais e frente (a mureta em corte já desenhada pela estrutura).
-	_invisible_wall(Vector3(-20.2, 1.5, 16.0), Vector3(0.4, 3.0, 16.0))
-	_invisible_wall(Vector3(20.2, 1.5, 16.0), Vector3(0.4, 3.0, 16.0))
-	_invisible_wall(Vector3(0, 1.5, 24.2), Vector3(40.8, 3.0, 0.4))
+	# O campo em volta da escola: pátio na frente, gramado dos lados e atrás.
+	var grass := Look.surface(Color(0.22, 0.3, 0.16), {"variation": 0.35, "noise_scale": 1.5, "moss_amount": 0.6})
+	var keep := _floor_mat
+	_floor_mat = grass
+	_floor(-CAMPO_X, CAMPO_Z0, -20, 24, Color.WHITE)
+	_floor(20, CAMPO_Z0, CAMPO_X, 24, Color.WHITE)
+	_floor(-20, CAMPO_Z0, 20, 8, Color.WHITE)
+	_floor_mat = keep
+	# Bordas do campo (a mureta em corte na frente; mato fechado no resto).
+	_invisible_wall(Vector3(-CAMPO_X - 0.2, 1.5, (CAMPO_Z0 + 24.0) * 0.5), Vector3(0.4, 3.0, 24.0 - CAMPO_Z0))
+	_invisible_wall(Vector3(CAMPO_X + 0.2, 1.5, (CAMPO_Z0 + 24.0) * 0.5), Vector3(0.4, 3.0, 24.0 - CAMPO_Z0))
+	_invisible_wall(Vector3(0, 1.5, CAMPO_Z0 - 0.2), Vector3(CAMPO_X * 2.0, 3.0, 0.4))
+	_invisible_wall(Vector3(0, 1.5, 24.2), Vector3(CAMPO_X * 2.0, 3.0, 0.4))
+	# Fora do campo: mata fechada em vez de paredão de tijolo (atrás e dos lados).
+	_floor_mat = grass
+	_floor(-56, -46, 54, CAMPO_Z0, Color.WHITE)
+	_floor(-56, CAMPO_Z0, -CAMPO_X, 30, Color.WHITE)
+	_floor(CAMPO_X, CAMPO_Z0, 54, 30, Color.WHITE)
+	_floor_mat = keep
+	var k := 0
+	var zf := -45.0
+	while zf < 28.0:
+		var xf := -54.0
+		while xf < 52.0:
+			var q := Vector3(xf + rng.randf_range(-1.2, 1.2), 0, zf + rng.randf_range(-1.2, 1.2))
+			var fora := q.z < CAMPO_Z0 - 1.0 or absf(q.x) > CAMPO_X + 1.0
+			var perto := q.z > CAMPO_Z0 - 16.0 and absf(q.x) < CAMPO_X + 16.0
+			if fora and perto:
+				k += 1
+				if k % 4 == 0:
+					Look.bush(self, q, rng.randf_range(1.4, 2.2), 400 + k)
+				else:
+					Look.tree(self, q, rng.randf_range(1.1, 1.7), 400 + k)
+			xf += 4.0
+		zf += 4.0
+	# Mato e árvores pelo campo, mais fechado perto das bordas.
+	for i in 26:
+		var p := Vector3(rng.randf_range(-CAMPO_X + 1.0, CAMPO_X - 1.0), 0, rng.randf_range(CAMPO_Z0 + 1.0, 23.0))
+		if absf(p.x) < 23.0 and p.z > -18.0:
+			continue  # longe do prédio e do pátio
+		if i % 3 == 0:
+			Look.tree(self, p, rng.randf_range(1.0, 1.5), 200 + i)
+		else:
+			Look.bush(self, p, rng.randf_range(1.0, 1.8), 200 + i)
+
+
+## O prédio da escola visto de fora: dois andares de tijolo e telhado de
+## duas águas. Atrás dele, o prédio sai da frente da câmera.
+func _build_predio() -> void:
+	var predio := Node3D.new()
+	predio.name = "Predio"
+	add_child(predio)
+	var h := 8.0
+	var tijolo := Look.brick({"moss_amount": 0.6})
+	# Volume do prédio (com colisão).
+	var body := _solid_piece(Vector3(0, h * 0.5, (PREDIO_Z0 + 7.9) * 0.5), Vector3(40.0, h, 7.9 - PREDIO_Z0), tijolo)
+	body.reparent(predio)
+	# Telhado de duas águas com beiral.
+	var telha := Look.surface(Color(0.45, 0.22, 0.16), {"variation": 0.35, "noise_scale": 3.0, "outline": 0.04, "moss_amount": 0.7})
+	var prism := PrismMesh.new()
+	prism.size = Vector3(7.9 - PREDIO_Z0 + 1.6, 4.0, 41.6)
+	var roof := MeshInstance3D.new()
+	roof.mesh = prism
+	roof.material_override = telha
+	roof.rotation_degrees = Vector3(0, 90, 0)
+	roof.position = Vector3(0, h + 2.0, (PREDIO_Z0 + 7.9) * 0.5)
+	predio.add_child(roof)
+	# Janelas nas laterais e nos fundos.
+	var frame := Look.surface(Color(0.36, 0.22, 0.15), {"outline": 0.03})
+	var glass := Look.surface(Color(0.1, 0.14, 0.17), {"variation": 0.3, "noise_scale": 4.0})
+	for y in [1.9, 5.4]:
+		for z in [PREDIO_Z0 + 3.0, PREDIO_Z0 + 8.0, PREDIO_Z0 + 13.0]:
+			for sx in [-1.0, 1.0]:
+				Look.piece(predio, Look.box(Vector3(0.12, 1.8, 2.6)), frame, Vector3(sx * 20.02, y, z))
+				Look.piece(predio, Look.box(Vector3(0.14, 1.6, 2.3)), glass, Vector3(sx * 20.03, y, z))
+		for x in [-15.0, -9.0, -3.0, 3.0, 9.0, 15.0]:
+			Look.piece(predio, Look.box(Vector3(2.6, 1.8, 0.12)), frame, Vector3(x, y, PREDIO_Z0 - 0.02))
+			Look.piece(predio, Look.box(Vector3(2.3, 1.6, 0.14)), glass, Vector3(x, y, PREDIO_Z0 - 0.03))
+	_predio = predio
 
 
 func _invisible_wall(center: Vector3, size: Vector3) -> void:

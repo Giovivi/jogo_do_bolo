@@ -113,6 +113,8 @@ static func tree(parent: Node3D, pos: Vector3, scale: float = 1.0, seed: int = 0
 		var r := rng.randf_range(0.9, 1.5) * scale
 		var off := Vector3(rng.randf_range(-1.2, 1.2), rng.randf_range(3.4, 4.8), rng.randf_range(-1.0, 1.0)) * scale
 		piece(t, blob(r, r * 1.6), foliage(greens[i % 3]), off, Vector3(0, rng.randf_range(0, 90), 0))
+	# O tronco é sólido: ninguém atravessa árvore.
+	_solid_cylinder(t, Vector3.ZERO, 0.4 * scale, 3.0 * scale)
 	return t
 
 
@@ -124,3 +126,20 @@ static func bush(parent: Node3D, pos: Vector3, size: float, seed: int = 0) -> vo
 		var r := size * rng.randf_range(0.35, 0.6)
 		var off := Vector3(rng.randf_range(-0.5, 0.5) * size, r * 0.6, rng.randf_range(-0.4, 0.4) * size)
 		piece(parent, blob(r, r * 1.4), foliage(greens[i % 2]), pos + off)
+	# A moita também é sólida.
+	_solid_cylinder(parent, pos, 0.42 * size, 0.9 * size)
+
+
+## Cilindro de colisão (camada do mundo) com a base em `base`.
+static func _solid_cylinder(parent: Node3D, base: Vector3, radius: float, height: float) -> void:
+	var body := StaticBody3D.new()
+	body.collision_layer = 1  # Game.LAYER_WORLD
+	body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var cyl := CylinderShape3D.new()
+	cyl.radius = radius
+	cyl.height = height
+	shape.shape = cyl
+	body.add_child(shape)
+	body.position = base + Vector3(0, height * 0.5, 0)
+	parent.add_child(body)
