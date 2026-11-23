@@ -10,6 +10,14 @@ uniform float plaster_amount = 0.5;
 uniform vec3 moss_color : source_color = vec3(0.3, 0.42, 0.2);
 uniform float moss_amount = 0.6;
 uniform vec3 top_color : source_color = vec3(0.13, 0.14, 0.15);
+// Textura (opcional): tex_amount > 0 troca o tijolo procedural pela foto.
+uniform sampler2D albedo_tex : source_color, repeat_enable, filter_linear_mipmap_anisotropic, hint_default_white;
+uniform sampler2D normal_tex : hint_normal, repeat_enable, filter_linear_mipmap_anisotropic;
+uniform float tex_amount = 0.0;
+uniform vec2 tex_size = vec2(2.5);
+uniform vec3 tex_tint : source_color = vec3(1.0);
+uniform float tex_contrast = 0.85;
+uniform float normal_strength = 0.6;
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -33,6 +41,12 @@ void fragment() {
 		float n = fbm(uv * 0.55);
 		float plaster = smoothstep(1.0 - plaster_amount - 0.02, 1.0 - plaster_amount + 0.02, n);
 		col = mix(col, plaster_color * (0.88 + 0.24 * fbm(uv * 3.0)), plaster);
+		if (tex_amount > 0.0) {
+			vec2 tuv = box_uv(wpos, wnorm) / tex_size;
+			col = mix(col, tex_color(albedo_tex, tuv, tex_tint, tex_contrast), tex_amount);
+			vec3 nw = box_normal(texture(normal_tex, tuv).rgb, wnorm, normal_strength);
+			NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
+		}
 		col *= mix(0.55, 1.0, smoothstep(0.0, 1.6, wpos.y));
 		float streak = smoothstep(0.62, 0.8, vnoise(vec2(uv.x * 3.0, uv.y * 0.15)));
 		col *= 1.0 - 0.25 * streak;

@@ -53,9 +53,9 @@ func build() -> void:
 	Game.rules.backdrop_height = old_h
 	# Paredes que continuam à vista ganham cor de tijolo.
 	for w in _walls:
-		var c := Color(0.48, 0.36, 0.29)
+		var c := Color(0.95, 0.92, 0.9)
 		w["color"] = c
-		(w["mat"] as StandardMaterial3D).albedo_color = c
+		Look.texture_std(w["mat"] as StandardMaterial3D, "Bricks097", 2.4, c, 1.2)
 	Game.chests_total = 0
 	_build_paredes_laterais()
 
@@ -67,10 +67,11 @@ func rescued_count() -> int:
 # ================================================================ frente
 
 func _build_frente() -> void:
-	_floor_mat = Look.tiles({"tile_a": Color(0.36, 0.35, 0.32), "tile_b": Color(0.3, 0.29, 0.27), "tile_size": 1.0, "grass_amount": 0.85, "grass_color": Color(0.26, 0.36, 0.18)})
+	# Pátio de terra batida arenosa com mato ralo e seco.
+	_floor_mat = Look.tiles(Look.tex("Ground088", Vector2(4.0, 4.0), Color(0.95, 0.92, 0.88), {"tile_size": 1.0, "grass_amount": 0.35, "grass_color": Color(0.45, 0.42, 0.26), "dirt_color": Color(0.58, 0.5, 0.38)}))
 	_floor(-20, 8, 20, 24, Color.WHITE)
 	# Caminho de cimento rachado até a porta.
-	_box_visual_mat(Vector3(0, 0.01, 16), Vector3(4, 0.02, 16), Look.tiles({"tile_a": Color(0.5, 0.49, 0.45), "tile_b": Color(0.46, 0.45, 0.42), "tile_size": 1.0, "grass_amount": 0.3}))
+	_box_visual_mat(Vector3(0, 0.01, 16), Vector3(4, 0.02, 16), Look.tiles(Look.tex("Concrete044D", Vector2(2.5, 2.5), Color(1.0, 0.97, 0.92), {"tile_size": 1.0, "grass_amount": 0.2, "grass_color": Color(0.58, 0.5, 0.38)})))
 	_build_limites_frente()
 	_build_predio()
 	var n0 := get_child_count()
@@ -103,7 +104,8 @@ func _build_frente() -> void:
 ## e o grupo atravessava a escola. Agora seguram o grupo dentro do pátio.
 func _build_limites_frente() -> void:
 	# O campo em volta da escola: pátio na frente, gramado dos lados e atrás.
-	var grass := Look.surface(Color(0.22, 0.3, 0.16), {"variation": 0.35, "noise_scale": 1.5, "moss_amount": 0.6})
+	# Terra seca com capim ralo (Ground109), sem musgo.
+	var grass := Look.surface(Color(0.22, 0.3, 0.16), Look.tex("Ground109", Vector2(5.0, 5.0)))
 	var keep := _floor_mat
 	_floor_mat = grass
 	_floor(-CAMPO_X, CAMPO_Z0, -20, 24, Color.WHITE)
@@ -155,12 +157,12 @@ func _build_predio() -> void:
 	predio.name = "Predio"
 	add_child(predio)
 	var h := 8.0
-	var tijolo := Look.brick({"moss_amount": 0.6})
+	var tijolo := Look.brick()
 	# Volume do prédio (com colisão).
 	var body := _solid_piece(Vector3(0, h * 0.5, (PREDIO_Z0 + 7.9) * 0.5), Vector3(40.0, h, 7.9 - PREDIO_Z0), tijolo)
 	body.reparent(predio)
 	# Telhado de duas águas com beiral.
-	var telha := Look.surface(Color(0.45, 0.22, 0.16), {"variation": 0.35, "noise_scale": 3.0, "outline": 0.04, "moss_amount": 0.7})
+	var telha := Look.surface(Color(0.45, 0.22, 0.16), Look.tex("RoofingTiles014B", Vector2(2.9, 2.9), Color.WHITE, {"outline": 0.04}))
 	var prism := PrismMesh.new()
 	prism.size = Vector3(7.9 - PREDIO_Z0 + 1.6, 4.0, 41.6)
 	var roof := MeshInstance3D.new()
@@ -201,7 +203,7 @@ func _build_fachada() -> void:
 	var z := 7.95
 	var frame := Look.surface(Color(0.36, 0.22, 0.15), {"outline": 0.03})
 	var glass := Look.surface(Color(0.1, 0.14, 0.17), {"variation": 0.3, "noise_scale": 4.0})
-	var concrete := Look.surface(Color(0.6, 0.58, 0.53), {"outline": 0.04, "moss_amount": 0.5})
+	var concrete := Look.surface(Color(0.6, 0.58, 0.53), Look.tex("Concrete044D", Vector2(2.5, 2.5), Color(1.1, 1.07, 1.0), {"outline": 0.04}))
 	for row in [[1.9, 1.6], [5.4, 1.6]]:
 		var y: float = row[0]
 		var h: float = row[1]
@@ -230,14 +232,14 @@ func _build_fachada() -> void:
 func _build_saguao() -> void:
 	var x0 := IN_X - 8.0
 	var x1 := IN_X + 8.0
-	_floor_mat = Look.tiles({"tile_size": 0.6, "grass_amount": 0.25})
+	_floor_mat = _saguao_floor()
 	_room(x0, -14, x1, 4, Color.WHITE, {"W": [[-2.0, 3.0]], "E": [[-2.0, 3.0]], "N": [[IN_X, 2.0]]})
 	_link(x0 - 1, -3.5, x0, -0.5)
 	_link(x1, -3.5, x1 + 1, -0.5)
 	_label("Saguão", Vector3(IN_X, 0, 3))
 	# Pé-direito duplo: as paredes do saguão sobem inteiras até o 2º andar,
 	# para não se ver as salas vizinhas por cima delas.
-	var tall := Look.brick({"moss_amount": 0.25})
+	var tall := Look.brick(_reboco_interno())
 	var top_h := 7.5
 	var up := top_h - WALL_H
 	_solid_piece(Vector3(x0 - WALL_T * 0.5, WALL_H + up * 0.5, -5.0), Vector3(WALL_T, up, 18.0 + 2.0 * WALL_T), tall)
@@ -265,7 +267,7 @@ func _build_saguao() -> void:
 	# câmera e o herói).
 	_frentes.append({"rect": Rect2(74, -24, 12, 9.5), "nodes": n_wall + _porta_oficiais, "faded": false})
 	# Mezanino a 3,5 m: fundo e laterais, com guarda-corpo.
-	var slab := Look.surface(Color(0.45, 0.44, 0.41), {"outline": 0.04, "moss_amount": 0.3})
+	var slab := Look.surface(Color(0.45, 0.44, 0.41), Look.tex("Concrete044D", Vector2(2.5, 2.5), Color(0.85, 0.83, 0.78), {"outline": 0.04}))
 	_solid_piece(Vector3(x0 + 1.25, MEZ_Y - 0.15, -5.0), Vector3(2.5, 0.3, 18.0), slab)
 	_solid_piece(Vector3(x1 - 1.25, MEZ_Y - 0.15, -5.0), Vector3(2.5, 0.3, 18.0), slab)
 	var rail := Look.surface(Color(0.5, 0.3, 0.18), {"outline": 0.025})
@@ -319,11 +321,11 @@ func _build_sala_planos() -> void:
 	var z1 := -14.5
 	var sx0 := IN_X - 6.0
 	var sx1 := IN_X + 6.0
-	_floor_mat = Look.surface(Color(0.3, 0.2, 0.14), {"plank_width": 0.22, "variation": 0.16})
+	_floor_mat = Look.surface(Color(0.3, 0.2, 0.14), Look.tex("WoodFloor043", Vector2(1.3, 0.65), Color(0.85, 0.8, 0.76)))
 	_room(sx0, z0, sx1, z1, Color.WHITE, {}, {}, ["S"])
 	_link(IN_X - 1.0, z1, IN_X + 1.0, -14.0)
 	# Porta reforçada com placa.
-	var metal := Look.surface(Color(0.24, 0.27, 0.3), {"outline": 0.03, "variation": 0.2})
+	var metal := Look.surface(Color(0.24, 0.27, 0.3), Look.tex("PaintedMetal006", Vector2(2.0, 2.0), Color(0.6, 0.68, 0.72), {"outline": 0.03}))
 	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(0.25, 2.6, 0.7)), metal, Vector3(IN_X - 1.15, 1.3, -14.25)))
 	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(0.25, 2.6, 0.7)), metal, Vector3(IN_X + 1.15, 1.3, -14.25)))
 	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(2.55, 0.3, 0.7)), metal, Vector3(IN_X, 2.65, -14.25)))
@@ -341,7 +343,7 @@ func _build_sala_planos() -> void:
 	_porta_oficiais.append(Look.piece(self, Look.box(Vector3(0.18, 0.28, 0.05)), Look.glow(Color(0.3, 1.0, 0.45), 1.6), Vector3(IN_X + 1.5, 1.3, -13.88)))
 	# Paredes internas lisas, de uma peça só. A estrutura em volta é montada
 	# em faixas de 1 m e, aqui de perto, o tijolo aparecia em degraus virados.
-	var inner := Look.brick({"moss_amount": 0.2})
+	var inner := Look.brick(_reboco_interno())
 	var hh := 8.0
 	for wx in [sx0 - 0.26, sx1 + 0.26]:
 		Look.piece(self, Look.box(Vector3(0.5, hh, z1 - z0 + 0.5)), inner, Vector3(wx, hh * 0.5, (z0 + z1) * 0.5 - 0.25))
@@ -358,13 +360,13 @@ func _build_sala_planos() -> void:
 	for i in 3:
 		Look.piece(self, Look.box(Vector3(0.8, 1.9, 0.6)), metal, Vector3(sx0 + 0.6, 0.95, z0 + 1.2 + i * 0.85))
 	for i in 2:
-		Look.piece(self, Look.box(Vector3(0.7, 1.2, 0.7)), Look.surface(Color(0.33, 0.36, 0.3), {"outline": 0.03}), Vector3(sx1 - 0.6, 0.6, z0 + 1.0 + i * 0.8))
+		Look.piece(self, Look.box(Vector3(0.7, 1.2, 0.7)), Look.surface(Color(0.33, 0.36, 0.3), Look.tex("PaintedMetal006", Vector2(1.5, 1.5), Color(0.5, 0.56, 0.5), {"outline": 0.03})), Vector3(sx1 - 0.6, 0.6, z0 + 1.0 + i * 0.8))
 	_solid_piece(Vector3(sx1 - 1.0, 0.4, -16.0), Vector3(1.2, 0.8, 1.2), Look.wood(Color(0.45, 0.34, 0.22)))
 	# Bandeira improvisada dos mutantes e luz baixa sobre a mesa.
 	Look.piece(self, Look.box(Vector3(1.6, 1.0, 0.04)), Look.surface(Color(0.12, 0.25, 0.45), {"variation": 0.3}), Vector3(IN_X + 4.0, 2.0, z0 + 0.08))
 	Look.piece(self, Look.blob(0.2), Look.glow(Color(0.25, 0.7, 1.0), 2.2), Vector3(IN_X + 4.0, 2.0, z0 + 0.12))
 	_mapa.lamp = _lamp(Vector3(IN_X, 2.8, -19.5), 1.1)
-	_floor_mat = Look.tiles({"tile_size": 0.6, "grass_amount": 0.25})
+	_floor_mat = _saguao_floor()
 	_hint(Rect2(sx0, z0, 12, 9.5), "Sala dos oficiais. Use F na mesa para escolher a missão.")
 
 
@@ -423,13 +425,15 @@ func _build_quartos(x0: float) -> void:
 
 func _build_laboratorio() -> void:
 	var open: bool = Game.progress.get("lab_open", false)
-	_floor_mat = Look.tiles({"tile_a": Color(0.6, 0.62, 0.6), "tile_b": Color(0.42, 0.45, 0.46), "tile_size": 0.4, "grass_amount": 0.15 if open else 0.45})
+	_floor_mat = Look.tiles(Look.tex("Tiles107", Vector2(2.0, 2.0), Color(0.55, 0.56, 0.55), {"tile_size": 0.4, "grass_amount": 0.15 if open else 0.4, "grass_color": Color(0.58, 0.5, 0.38)}))
 	_room(56, -14, 71, 4, Color.WHITE, {"E": [[-2.0, 3.0]]})
+	_parede_lisa(55.74, -14.0, 4.0)
+	_parede_lisa(71.26, -14.0, 4.0, -2.0)
 	_label("Laboratório", Vector3(63.5, 0, 2))
-	var metal := Look.surface(Color(0.4, 0.43, 0.46), {"outline": 0.03})
+	var metal := Look.surface(Color(0.4, 0.43, 0.46), Look.tex("MetalPlates014", Vector2(1.6, 1.6), Color(0.85, 0.88, 0.9), {"outline": 0.03}))
 	for x in [59.0, 63.5, 68.0]:
 		_solid_piece(Vector3(x, 0.5, -9), Vector3(3.2, 1.0, 1.3), metal)
-	_solid_piece(Vector3(63.5, 1.1, -13.4), Vector3(12, 2.2, 0.8), Look.surface(Color(0.32, 0.36, 0.34), {"outline": 0.03}))
+	_solid_piece(Vector3(63.5, 1.1, -13.4), Vector3(12, 2.2, 0.8), Look.surface(Color(0.32, 0.36, 0.34), Look.tex("MetalPlates014", Vector2(1.6, 1.6), Color(0.6, 0.66, 0.64), {"outline": 0.03})))
 	if open:
 		_open_lab()
 	else:
@@ -464,10 +468,12 @@ func _on_lab_opened() -> void:
 
 
 func _build_treino() -> void:
-	_floor_mat = Look.surface(Color(0.5, 0.33, 0.22), {"plank_width": 0.25, "variation": 0.1, "moss_amount": 0.4})
+	_floor_mat = Look.surface(Color(0.5, 0.33, 0.22), Look.tex("WoodFloor051", Vector2(1.8, 1.8), Color(0.88, 0.82, 0.76)))
 	_room(89, -14, 104, 4, Color.WHITE, {"W": [[-2.0, 3.0]]})
+	_parede_lisa(104.26, -14.0, 4.0)
+	_parede_lisa(88.74, -14.0, 4.0, -2.0)
 	_label("Treino: ginásio", Vector3(96.5, 0, 2))
-	var debris := Look.surface(Color(0.45, 0.43, 0.4), {"outline": 0.04, "variation": 0.3, "noise_scale": 3.0})
+	var debris := Look.surface(Color(0.45, 0.43, 0.4), Look.tex("Concrete044D", Vector2(1.5, 1.5), Color(0.92, 0.88, 0.82), {"outline": 0.04}))
 	for p in [Vector3(91.5, 0, -1.5), Vector3(93.5, 0, 1.5), Vector3(92.5, 0, -4.5)]:
 		_solid_piece(p + Vector3(0, 0.6, 0), Vector3(1.8, 1.2, 1.8), debris, Vector3(0, rng.randf_range(0, 40), rng.randf_range(-8, 8)))
 	# Cesta de basquete torta.
@@ -515,6 +521,33 @@ func _update_paredes_laterais(pos: Vector3) -> void:
 
 
 # ================================================================ peças do hub
+
+## Piso do saguão: ladrilho bege antigo (Tiles139) com areia acumulada.
+func _saguao_floor() -> Material:
+	return Look.tiles(Look.tex("Tiles139", Vector2(2.0, 2.0), Color(0.88, 0.85, 0.8), {"tile_size": 0.6, "grass_amount": 0.3, "grass_color": Color(0.58, 0.5, 0.38)}))
+
+
+## Parede lateral lisa, de uma peça só (só visual), por cima da estrutura em
+## faixas de 1 m: ali o tijolo aparecia em degraus, com as fiadas de lado.
+## door_z: centro da porta de 3 m nessa parede (NAN = sem porta).
+func _parede_lisa(x: float, z0: float, z1: float, door_z: float = NAN) -> void:
+	var hh := 8.0
+	var mat := Look.brick()
+	var spans: Array = [[z0 - 0.5, z1]]
+	if not is_nan(door_z):
+		spans = [[z0 - 0.5, door_z - 1.5], [door_z + 1.5, z1]]
+		# Verga por cima da porta.
+		Look.piece(self, Look.box(Vector3(0.5, hh - WALL_H, 3.0)), mat, Vector3(x, (hh + WALL_H) * 0.5, door_z))
+	for sp in spans:
+		var a: float = sp[0]
+		var b: float = sp[1]
+		Look.piece(self, Look.box(Vector3(0.5, hh, b - a)), mat, Vector3(x, hh * 0.5, (a + b) * 0.5))
+
+
+## Paredes de dentro: reboco descascado mostrando o tijolo (PaintedPlaster016).
+func _reboco_interno() -> Dictionary:
+	return Look.tex("PaintedPlaster016", Vector2(3.5, 3.5), Color(0.92, 0.88, 0.84))
+
 
 ## Chão com o material atual (_floor_mat), sem linhas de grade.
 func _floor(x0: float, z0: float, x1: float, z1: float, _color: Color) -> void:
@@ -608,9 +641,9 @@ func _commit(st: SurfaceTool, mesh: ArrayMesh, color: Color) -> void:
 	if color.r > 0.5:
 		mat = Look.brick()
 	elif color.r > 0.33:
-		mat = Look.brick({"plaster_amount": 0.7, "plaster_color": Color(0.52, 0.5, 0.46), "moss_amount": 0.8})
+		mat = Look.brick({"tex_tint": Color(0.8, 0.78, 0.76)})
 	elif color.r > 0.27:
-		mat = Look.brick({"plaster_amount": 0.2})
+		mat = Look.brick({"tex_tint": Color(0.7, 0.68, 0.66)})
 	else:
 		mat = Look.surface(Color(0.12, 0.13, 0.14), {"variation": 0.2, "noise_scale": 2.0})
 	st.set_material(mat)

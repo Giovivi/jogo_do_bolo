@@ -1,12 +1,52 @@
 class_name Look
 extends RefCounted
-## Materiais com cel shading e contorno de HQ (provisórios, sem assets externos).
+## Materiais com cel shading e contorno de HQ. As fotos de superfície vêm do
+## ambientCG (CC0, ver assets/textures/CREDITS.md) e passam pelos mesmos shaders.
 
 const SURFACE := preload("res://shaders/toon_surface.gdshader")
 const BRICK := preload("res://shaders/toon_brick.gdshader")
 const TILES := preload("res://shaders/toon_tiles.gdshader")
 const OUTLINE := preload("res://shaders/outline.gdshader")
 const PAPER := preload("res://shaders/map_paper.gdshader")
+const TEX_PATH := "res://assets/textures/%s/%s_%s.jpg"
+
+
+## Parâmetros de textura para os shaders toon (surface, brick, tiles).
+## size = metros cobertos por uma repetição; tint multiplica a cor da foto.
+static func tex(id: String, size: Vector2, tint: Color = Color.WHITE, extra: Dictionary = {}) -> Dictionary:
+	var d := {
+		"albedo_tex": load(TEX_PATH % [id, id, "color"]),
+		"normal_tex": load(TEX_PATH % [id, id, "normal"]),
+		"tex_amount": 1.0,
+		"tex_size": size,
+		"tex_tint": tint,
+		# Foto inteira (realista): contraste e relevo cheios.
+		"tex_contrast": 1.0,
+		"normal_strength": 1.0,
+	}
+	d.merge(extra, true)
+	return d
+
+
+## Põe a foto num StandardMaterial3D (fase e paredes que somem perto do herói):
+## projeção pelo mundo e luz em faixas. albedo_color continua sendo a cor
+## (com alfa) usada para o esmaecimento das paredes.
+static func texture_std(mat: StandardMaterial3D, id: String, size: float, tint: Color = Color.WHITE, height: float = 0.0) -> StandardMaterial3D:
+	mat.albedo_texture = load(TEX_PATH % [id, id, "color"])
+	mat.normal_enabled = true
+	mat.normal_texture = load(TEX_PATH % [id, id, "normal"])
+	mat.normal_scale = 1.0
+	mat.uv1_triplanar = true
+	mat.uv1_world_triplanar = true
+	mat.uv1_triplanar_sharpness = 8.0
+	# Fotos 2:1 (tijolo) passam a altura em "height".
+	var hgt := size if height <= 0.0 else height
+	mat.uv1_scale = Vector3(1.0 / size, 1.0 / hgt, 1.0 / size)
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	mat.albedo_color = Color(tint.r, tint.g, tint.b, mat.albedo_color.a)
+	return mat
 
 
 static func surface(color: Color, opts: Dictionary = {}) -> ShaderMaterial:
@@ -20,8 +60,10 @@ static func surface(color: Color, opts: Dictionary = {}) -> ShaderMaterial:
 	return m
 
 
+## Madeira de tábuas (Planks023A). A cor tinge a foto (referência: marrom padrão).
 static func wood(color: Color = Color(0.42, 0.29, 0.19), outline_width: float = 0.03) -> ShaderMaterial:
-	return surface(color, {"plank_width": 0.18, "variation": 0.12, "outline": outline_width})
+	var tint := Color(color.r / 0.42, color.g / 0.29, color.b / 0.19) * 0.95
+	return surface(color, tex("Planks023A", Vector2(1.5, 1.5), tint, {"outline": outline_width}))
 
 
 static func foliage(color: Color) -> ShaderMaterial:
@@ -32,9 +74,16 @@ static func glow(color: Color, energy: float = 2.5) -> ShaderMaterial:
 	return surface(color, {"variation": 0.05, "emission_color": color, "emission_energy": energy})
 
 
+## Tijolo aparente velho (Bricks097), sem musgo. Passe outra foto com
+## Look.tex(...) nas opções, ou "tex_amount": 0.0 para o tijolo procedural.
 static func brick(opts: Dictionary = {}) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = BRICK
+	var all := tex("Bricks097", Vector2(2.4, 1.2))
+	all.merge(opts, true)
+	# Escola seca e arenosa: sem musgo nem hera nas paredes.
+	all["moss_amount"] = 0.0
+	opts = all
 	for k in opts:
 		m.set_shader_parameter(k, opts[k])
 	return m

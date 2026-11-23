@@ -13,6 +13,15 @@ uniform vec3 moss_color : source_color = vec3(0.27, 0.38, 0.2);
 uniform float moss_amount = 0.0;
 uniform vec3 emission_color : source_color = vec3(0.0);
 uniform float emission_energy = 0.0;
+// Textura (opcional): tex_amount > 0 troca a cor procedural pela foto.
+uniform sampler2D albedo_tex : source_color, repeat_enable, filter_linear_mipmap_anisotropic, hint_default_white;
+uniform sampler2D normal_tex : hint_normal, repeat_enable, filter_linear_mipmap_anisotropic;
+uniform float tex_amount = 0.0;
+// Metros cobertos por uma repetição da textura (largura, altura).
+uniform vec2 tex_size = vec2(2.0);
+uniform vec3 tex_tint : source_color = vec3(1.0);
+uniform float tex_contrast = 0.85;
+uniform float normal_strength = 0.6;
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -26,7 +35,12 @@ void fragment() {
 	vec2 uv = abs(wnorm.y) > 0.6 ? wpos.xz : (abs(wnorm.x) > abs(wnorm.z) ? wpos.zy : wpos.xy);
 	float n = fbm(uv * noise_scale);
 	vec3 col = base_color * (1.0 - variation + 2.0 * variation * n);
-	if (plank_width > 0.0) {
+	if (tex_amount > 0.0) {
+		vec2 tuv = box_uv(wpos, wnorm) / tex_size;
+		col = mix(col, tex_color(albedo_tex, tuv, tex_tint, tex_contrast), tex_amount);
+		vec3 nw = box_normal(texture(normal_tex, tuv).rgb, wnorm, normal_strength);
+		NORMAL = normalize((VIEW_MATRIX * vec4(nw, 0.0)).xyz);
+	} else if (plank_width > 0.0) {
 		float p = uv.y / plank_width;
 		float id = floor(p);
 		float edge = smoothstep(0.0, 0.06, fract(p)) * smoothstep(1.0, 0.94, fract(p));
