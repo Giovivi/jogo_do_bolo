@@ -101,11 +101,15 @@ Cada golpe tem uma força (seção 3.6 da especificação de mecânicas). A for�
 
 ## Roteiro da fase (10 a 15 min)
 
+A fase é um anel: a ida corre pela linha de baixo (da esquerda para a direita na tela) e a volta pela linha de cima. Como a câmera olha para o norte, a volta nunca fica entre a câmera e o herói, e a Saída fica logo acima da Entrada.
+
 1. **Entrada:** 4 soldados. Baú numa saliência atrás de um vão de 2 m (ensina o planar).
-2. **Triagem:** 6 soldados e 2 drones, 3 baús. Sala secreta ao norte atrás de um vão de 4 m. Pelo vidro ao sul dá para ver o cofre.
-3. **Celas:** use o console (F). Aguente 60 s de onda (6 soldados, 3 drones). O Feixe entra no grupo. Se ele já foi resgatado antes, começa a fase ao lado do Fênix e a cela fica aberta e vazia.
-4. **Hangar:** 4 drones e 1 soldado com escudo. Troque para o Feixe e acerte o interruptor da passarela alta: abre a porta de serviço ao sul.
-5. **Volta:** corredor com 2 soldados, porta blindada do cofre (laser do Feixe), baú raro, e a **Saída** com o baú final e a tela de resultado (tempo e baús 8/8).
+2. **Triagem:** 6 soldados e 2 drones, 3 baús. No fundo, o vidro blindado mostra o cofre. A porta no mezanino leva ao vão de 4 m e à sala secreta (só o Fênix passa).
+3. **Celas:** use o console (F). Aguente 60 s de onda (6 soldados, 3 drones). Os inimigos entram pelas portas laterais e pelos cantos do fundo, e o ponto de entrada pisca em vermelho 1 s antes. O Feixe entra no grupo. Se ele já foi resgatado antes, começa a fase ao lado do Fênix e a cela fica aberta e vazia.
+4. **Hangar:** 4 drones e 1 soldado com escudo. Troque para o Feixe e acerte o interruptor da passarela alta: abre a porta de serviço no fundo do hangar.
+5. **Depósito (volta):** 2 soldados e 1 soldado com escudo, caixas para se cobrir e 1 baú na plataforma.
+6. **Cofre:** porta blindada (laser do Feixe) e baú raro.
+7. **Saída:** sobe pelo norte do cofre e volta para cima da Entrada. Baú final e tela de resultado (tempo e baús 9/9).
 
 Os baús e grupos de inimigos são sorteados entre pontos candidatos (`Marker3D` no nó `Candidatos`) a cada entrada. A semente aparece no console da Godot.
 
@@ -124,6 +128,7 @@ A câmera padrão olha de frente para a parede do fundo, com 22° de inclinaçã
 - A troca de zoom leva 0,8 s, com aceleração e freio. Ela só acontece depois que o herói entra 1 m na outra sala, e os corredores sem zona mantêm o nível anterior.
 - Na troca de herói, o deslize de 0,25 s já leva o zoom da sala do novo herói. Combate e especiais não mexem no zoom.
 - Nada fica transparente na frente do herói. O efeito antigo está desligado (`wall_fade`), e o corte baixo das paredes da frente continua.
+- Na fase, toda parede de borda passa pelo corte, mesmo as que encostam 0,5 m no chão da sala vizinha. A estrutura até 2 m ao lado do chão andável também fica baixa, para a quina não tampar o herói quando a câmera segue a mira para o lado. A escola não usa essas duas regras.
 
 Em `data/regras.tres` (grupos "Câmera" e "Cenário em corte") dá para ajustar o giro, a inclinação, a perspectiva, a abertura (`camera_fov`), o enquadramento e as alturas do corte. Para voltar à isométrica antiga, use giro 45, inclinação 30 e `camera_perspective` desligado. A mira pelo mouse funciona em todos os modos.
 
