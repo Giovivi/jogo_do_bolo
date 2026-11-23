@@ -8,6 +8,8 @@ extends Hero
 const BLAST_INVULNERABLE := 0.35
 ## Tolerância de altura entre o raio e o centro do corpo do inimigo (m).
 const BEAM_HEIGHT_TOLERANCE := 1.1
+## Malha do Feixe (óculos de laser) no mesmo esqueleto e animações do Fênix.
+const MODEL := preload("res://art/modelos/feixe_animado.glb")
 
 var _laser_active: bool = false
 var _laser_time: float = 0.0
@@ -16,6 +18,7 @@ var _laser_ai_limit: float = 0.0
 var _laser_meshes: Array[MeshInstance3D] = []
 var _laser_flare: Sprite3D
 var _ai_target: Actor = null
+var model: FenixModel
 
 
 func _fb() -> FeixeStats:
@@ -24,9 +27,21 @@ func _fb() -> FeixeStats:
 
 func _ready() -> void:
 	super._ready()
+	_use_model()
 	# Faísca vermelha clara no raio, vermelha forte no Q, no E e no R.
 	impact_color = Color(1.0, 0.55, 0.45, 0.9)
 	impact_color_strong = Color(1.0, 0.2, 0.15, 0.95)
+
+
+## Troca a cápsula provisória pelo modelo 3D (a colisão continua a mesma).
+func _use_model() -> void:
+	for child in visual.get_children():
+		if child is MeshInstance3D:
+			child.visible = false
+	model = FenixModel.new()
+	model.scene = MODEL
+	model.hero = self
+	visual.add_child(model)
 
 
 func _physics_process(delta: float) -> void:
@@ -71,7 +86,8 @@ func _player_actions(_aim: Vector3, _move: Vector3) -> void:
 
 ## O rosto do Feixe: de onde saem os raios e o clarão.
 func _muzzle() -> Vector3:
-	return global_position + facing * 0.5 + Vector3(0, 1.25, 0)
+	# Altura dos óculos do modelo.
+	return global_position + facing * 0.3 + Vector3(0, 1.6, 0)
 
 
 ## Alvo do raio: o inimigo embaixo do cursor (jogador) ou o da IA.
@@ -148,6 +164,7 @@ func optic_shot() -> bool:
 		deal_damage(v, s.shot_damage, {"strength": Impact.WEAK, "dir": dir, "ability": false})
 	Game.laser_beam(from, to, 0.05, 0.2, 0.1)
 	Game.laser_flare(from, 0.9, 0.1)
+	_anim("Spell_Simple_Shoot", 2.0)
 	return true
 
 
@@ -165,6 +182,7 @@ func start_laser(ai_limit: float) -> bool:
 	var from := _muzzle()
 	_laser_meshes = Game.laser_beam(from, from + facing, 0.16, 0.7, 0.0)
 	_laser_flare = Game.laser_flare(from, 1.7, 0.0)
+	_anim("Spell_Simple_Shoot", 0.8)
 	return true
 
 
@@ -253,6 +271,7 @@ func repulsion_pulse() -> bool:
 		var d := facing.rotated(Vector3.UP, ang)
 		Game.laser_beam(from, from + d * s.pulse_range, 0.07, 0.3, 0.25)
 	Game.laser_flare(from, 1.3, 0.15)
+	_anim("Punch_Cross", 1.6)
 	for e in Game.living_enemies():
 		var enemy := e as Actor
 		if Game.in_cone(global_position, facing, enemy.global_position, s.pulse_range, s.pulse_arc_degrees, enemy.body_radius) \
@@ -280,6 +299,7 @@ func use_special(_aim: Vector3) -> bool:
 			to = hit["position"]
 		Game.laser_beam(from, to, 0.08, 0.35, 0.4)
 	Game.laser_flare(from, 3.0, 0.35)
+	_anim("Spell_Simple_Shoot", 1.2)
 	# Invulnerável por um instante enquanto dispara.
 	invulnerable = true
 	get_tree().create_timer(BLAST_INVULNERABLE).timeout.connect(_end_blast_invulnerability)
@@ -326,3 +346,17 @@ func _ai_combat(target: Actor, delta: float) -> Vector3:
 func go_down() -> void:
 	stop_laser()
 	super.go_down()
+	# O modelo tem animação de queda: não precisa deitar a cápsula.
+	visual.rotation.x = 0.0
+	visual.position.y = 0.0
+
+
+func _on_damaged(amount: float, source: Node) -> void:
+	super._on_damaged(amount, source)
+	if not is_dead:
+		_anim("Hit_Chest", 1.5)
+
+
+func _anim(anim_name: String, speed: float) -> void:
+	if model != null:
+		model.play_once(anim_name, speed)
