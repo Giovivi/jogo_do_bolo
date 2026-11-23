@@ -25,6 +25,7 @@ var _lab_door: Door
 ## Parede da frente das salas laterais: {rect, mat} (some com o grupo dentro).
 var _frentes: Array[Dictionary] = []
 var _porta_oficiais: Array = []
+var _mapa: MesaMapa
 
 
 func build() -> void:
@@ -278,7 +279,7 @@ func _build_sala_planos() -> void:
 	# Bandeira improvisada dos mutantes e luz baixa sobre a mesa.
 	Look.piece(self, Look.box(Vector3(1.6, 1.0, 0.04)), Look.surface(Color(0.12, 0.25, 0.45), {"variation": 0.3}), Vector3(IN_X + 4.0, 2.0, z0 + 0.08))
 	Look.piece(self, Look.blob(0.2), Look.glow(Color(0.25, 0.7, 1.0), 2.2), Vector3(IN_X + 4.0, 2.0, z0 + 0.12))
-	_lamp(Vector3(IN_X, 2.8, -19.5), 2.6)
+	_mapa.lamp = _lamp(Vector3(IN_X, 2.8, -19.5), 1.1)
 	_floor_mat = Look.tiles({"tile_size": 0.6, "grass_amount": 0.25})
 	_hint(Rect2(sx0, z0, 12, 9.5), "Sala dos oficiais. Use F na mesa para escolher a missão.")
 
@@ -298,21 +299,17 @@ func _build_mesa(top: Vector3) -> void:
 	paper.position = top + Vector3(0, 0.52, 0)
 	paper.rotation_degrees = Vector3(0, 3, 0)
 	add_child(paper)
-	# Alfinetes: vermelho = resgate, dourado = saque, azul = sabotagem (apagados = fechadas).
-	var pins := [[Vector3(-0.8, 0, 0.2), Color(0.9, 0.3, 0.22), true], [Vector3(0.6, 0, -0.4), Color(0.88, 0.69, 0.25), false], [Vector3(1.1, 0, 0.5), Color(0.25, 0.66, 1.0), false], [Vector3(-0.2, 0, -0.6), Color(0.9, 0.3, 0.22), false]]
-	for p in pins:
-		var c: Color = p[1]
-		if not p[2]:
-			c = c.darkened(0.55)
-		var base: Vector3 = top + Vector3(0, 0.52, 0) + p[0]
-		Look.piece(self, Look.cylinder(0.01, 0.01, 0.22, 4), Look.surface(Color(0.15, 0.15, 0.15)), base + Vector3(0, 0.11, 0))
-		var head: Material = Look.glow(c, 1.6) if p[2] else Look.surface(c, {"outline": 0.01})
-		Look.piece(self, Look.blob(0.07), head, base + Vector3(0, 0.24, 0))
+	# Alfinetes azuis das missões e a câmera que desce até o mapa.
+	_mapa = MesaMapa.new()
+	_mapa.name = "MesaMapa"
+	add_child(_mapa)
+	_mapa.setup(top + Vector3(0, 0.52, 0))
+	_mapa.mission_chosen.connect(_on_mission_chosen)
 	var mesa := HubSpot.new()
 	mesa.position = top + Vector3(0, 0, 1.6)
 	mesa.prompt = "Abrir o mapa de missões"
 	add_child(mesa)
-	mesa.used.connect(func() -> void: mission_requested.emit())
+	mesa.used.connect(_mapa.open)
 	# Cadeiras.
 	for sx in [-1.0, 1.0]:
 		_solid_piece(top + Vector3(2.4 * sx, 0.25, 0.3), Vector3(0.6, 0.5, 0.6), wood)
@@ -394,6 +391,15 @@ func _build_treino() -> void:
 	Look.piece(self, Look.box(Vector3(0.15, 3.5, 0.15)), metal, Vector3(96.5, 1.75, -13.2))
 	Look.piece(self, Look.box(Vector3(1.8, 1.1, 0.08)), Look.surface(Color(0.75, 0.73, 0.68), {"outline": 0.03}), Vector3(96.5, 3.4, -12.9), Vector3(0, 0, 7))
 	_hint(Rect2(89, -4, 3, 4), "O ginásio está cheio de entulho. Um mutante forte poderia liberar o treino.")
+
+
+## Clicou num alfinete jogável: abre o cartão da missão por cima do mapa e,
+## quando o cartão fecha com Esc, volta para o mapa.
+func _on_mission_chosen(_id: String) -> void:
+	mission_requested.emit()
+	for c in get_parent().get_children():
+		if c is MissionCard and not c.is_queued_for_deletion():
+			(c as MissionCard).closed.connect(_mapa.back_from_card)
 
 
 # ================================================================ salas laterais
@@ -483,7 +489,7 @@ func _stairs(from: Vector3, to: Vector3, width: float, mat: Material) -> void:
 		Look.piece(self, Look.box(Vector3(width, 0.25, depth + 0.02)), mat, Vector3(p.x, p.y - 0.02, p.z))
 
 
-func _lamp(pos: Vector3, energy: float = 1.6) -> void:
+func _lamp(pos: Vector3, energy: float = 1.6) -> OmniLight3D:
 	var light := OmniLight3D.new()
 	light.light_color = LAMP
 	light.light_energy = energy * _lamp_scale
@@ -492,6 +498,7 @@ func _lamp(pos: Vector3, energy: float = 1.6) -> void:
 	light.position = pos
 	add_child(light)
 	Look.piece(self, Look.cylinder(0.05, 0.3, 0.25, 6), Look.glow(LAMP, 2.0), pos + Vector3(0, 0.15, 0))
+	return light
 
 
 func _move_party(target: Vector3) -> void:
