@@ -72,13 +72,18 @@ func _ready() -> void:
 	_first.pressed.connect(_start)
 	menu.add_child(_first)
 	var opts := UIStyle.menu_button("Opções", 40)
-	opts.disabled = true
-	opts.tooltip_text = "Em breve"
+	opts.pressed.connect(func() -> void: _open_options(root, opts))
 	menu.add_child(opts)
 	var quit := UIStyle.menu_button("Sair", 40)
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	menu.add_child(quit)
 	_first.call_deferred("grab_focus")
+
+
+func _open_options(root: Control, from: Button) -> void:
+	var o := OptionsScreen.new()
+	o.closed.connect(func() -> void: from.grab_focus())
+	root.add_child(o)
 
 
 func _start() -> void:

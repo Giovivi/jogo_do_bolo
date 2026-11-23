@@ -19,6 +19,7 @@ func _ready() -> void:
 	Game.reset_run()
 	get_tree().paused = false
 	Game.world_root = self
+	OptionsScreen.apply_saved()
 
 	var in_hub := Game.mode == "hub"
 	if in_hub:

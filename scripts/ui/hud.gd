@@ -248,6 +248,12 @@ func _build_pause() -> Control:
 	_pause_resume = UIStyle.menu_button("Voltar ao jogo")
 	_pause_resume.pressed.connect(_toggle_pause)
 	menu.add_child(_pause_resume)
+	var opts := UIStyle.menu_button("Opções")
+	opts.pressed.connect(func() -> void:
+		var o := OptionsScreen.new()
+		o.closed.connect(func() -> void: opts.grab_focus())
+		s.add_child(o))
+	menu.add_child(opts)
 	if Game.mode == "fase":
 		var again := UIStyle.menu_button("Reiniciar fase")
 		again.pressed.connect(func() -> void: restart_requested.emit())
