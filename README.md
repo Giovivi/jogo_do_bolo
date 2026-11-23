@@ -63,9 +63,9 @@ O documento de design atualizado está em `docs/Projeto_Mutantes_GDD_v0.3.pdf`.
 **Feixe** (resgatado na sala 3)
 Tudo em raio laser vermelho: um raio fino com núcleo claro, e um clarão estrelado que sai do rosto a cada disparo.
 - Clique, Raio Laser: instantâneo, 8 de dano, alcance de 15 m, para no primeiro inimigo ou parede. Aciona o interruptor do hangar.
-- Q, Raio Forte: segurar, 12/s por até 3 s, anda devagar. É grosso, atravessa todos os inimigos da linha e interrompe quem acerta. Corta a porta blindada do cofre.
-- E, Cone de Raios: leque de 90° com 6 m de alcance, 15 de dano. Empurra 2,5 m e acerta drones.
-- R, Suprema em Círculo: explosão de raios com raio de 14 m em volta do Feixe, que pega a sala toda. Dá 120 de dano e derruba.
+- Q, Raio Forte: segurar, 12/s por até 3 s, anda devagar e o tranco o empurra para trás (~1 m em 3 s), com a mão na têmpora. Faíscas giram em volta do raio, anéis de pressão correm por ele e sai um respingo de luz onde bate. É grosso, atravessa todos os inimigos da linha e interrompe quem acerta. Corta a porta blindada do cofre.
+- E, Cone de Raios: leque liso de energia de 90° com 6 m de alcance que se abre dos óculos, com a borda acesa e ondas correndo para fora. 15 de dano. Empurra 2,5 m e acerta drones.
+- R, Suprema em Círculo: com a mão na têmpora, um raio de 14 m dá uma volta inteira no sentido horário em ~1,2 s e o corpo vira junto. Cada inimigo no alcance leva 120 de dano e cai quando o raio passa por ele; o chão por onde o raio passou fica vermelho e vai apagando.
 
 **Grupo**
 - Troca 1 a 4 assume o aliado onde ele está, a câmera desliza em ~0,25 s, sem ataque de entrada.
@@ -96,7 +96,7 @@ Cada golpe tem uma força (seção 3.6 da especificação de mecânicas). A for�
 - O escudo frontal só recua o soldado, sem interromper.
 - Quem apanha pisca em vermelho. No ponto do acerto aparece uma chama dourada (comum) ou azul (forte) do Fênix, e uma faísca vermelha do Feixe. O Raio Forte interrompe sem pausar o jogo a cada pulso.
 - O herói: golpe comum só dá um tranquinho. Ataque forte interrompe por ~0,3 s, e o dash cancela a interrupção. Não há invulnerabilidade depois de apanhar.
-- A Suprema em Círculo deixa o Feixe invulnerável por ~0,35 s.
+- A Suprema em Círculo deixa o Feixe parado e invulnerável durante a volta (~1,2 s).
 - O tremor de câmera pode ser desligado em `data/regras.tres` (`screen_shake`). Os números de cada força ficam em `scripts/combat/impact.gd`.
 
 ## Roteiro da fase (10 a 15 min)
