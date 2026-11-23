@@ -11,12 +11,15 @@ var rig: CameraRig
 var hud: HUD
 var fenix: Fenix
 var feixe: Feixe
+var _rescued_this_run: bool = false
+var _card: MissionCard
 
 
 func _ready() -> void:
 	Game.reset_run()
 	get_tree().paused = false
 	Game.world_root = self
+	OptionsScreen.apply_saved()
 
 	var in_hub := Game.mode == "hub"
 	if in_hub:
@@ -72,6 +75,13 @@ func _ready() -> void:
 	party.defeated.connect(_on_defeated)
 	hud.restart_requested.connect(restart)
 
+	# Menu inicial: uma vez por sessão, por cima da frente da escola.
+	if in_hub and not MainMenu.shown:
+		var menu := MainMenu.new()
+		hud.set_hidden(true)
+		menu.closed.connect(func() -> void: hud.set_hidden(false))
+		add_child(menu)
+
 
 func _physics_process(_delta: float) -> void:
 	if Input.is_action_just_pressed("debug_rescue") and feixe != null and not feixe.in_party and Game.mode == "fase":
@@ -84,11 +94,23 @@ func _physics_process(_delta: float) -> void:
 func _on_feixe_rescued() -> void:
 	party.rescue(feixe)
 	Game.progress["feixe"] = true
+	_rescued_this_run = true
 
 
+## A mesa do mapa abre o cartão da missão; "Partir" leva à fase.
 func _on_mission_requested() -> void:
-	Game.mode = "fase"
-	restart()
+	if _card != null:
+		return
+	_card = MissionCard.new()
+	_card.party = party
+	hud.set_hidden(true)
+	_card.depart.connect(func() -> void:
+		Game.mode = "fase"
+		restart())
+	_card.closed.connect(func() -> void:
+		_card = null
+		hud.set_hidden(false))
+	add_child(_card)
 
 
 func _on_run_completed() -> void:
@@ -96,10 +118,15 @@ func _on_run_completed() -> void:
 		return
 	Game.run_finished = true
 	Game.progress["runs"] = int(Game.progress["runs"]) + 1
+	var best: float = Game.progress.get("best_time", -1.0)
+	var new_record := best < 0.0 or Game.run_time < best
+	if new_record:
+		Game.progress["best_time"] = Game.run_time
+	Game.progress["best_chests"] = maxi(int(Game.progress.get("best_chests", 0)), Game.chests_opened)
 	# Depois da tela de resultado (Enter), o grupo volta para a escola.
 	Game.mode = "hub"
 	get_tree().paused = true
-	hud.show_results()
+	hud.show_results("Feixe" if _rescued_this_run else "", new_record and best >= 0.0)
 
 
 func _on_defeated() -> void:
