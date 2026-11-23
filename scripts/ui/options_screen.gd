@@ -4,22 +4,34 @@ extends Control
 ## até fechar o jogo.
 ## - Câmera segue a mira: 0 a 3 m, passos de 0,5 m (Game.rules.camera_aim_follow)
 ## - Tremor da câmera: liga/desliga (Game.rules.screen_shake)
+## - Tipo de câmera: de cima ou atrás do herói (Game.rules.camera_behind);
+##   trocar recarrega a cena, porque o corte das paredes muda.
+## - Retícula: liga/desliga (Game.rules.behind_reticle)
 
 signal closed
 
 const AIM_PROPERTY := "camera_aim_follow"
 const SHAKE_PROPERTY := "screen_shake"
+const BEHIND_PROPERTY := "camera_behind"
+const RETICLE_PROPERTY := "behind_reticle"
 
 ## Guardados aqui também, para a tela abrir com o último valor escolhido
 ## mesmo antes de a câmera dinâmica existir na versão em uso.
 static var aim_follow: float = 1.5
 static var shake_on: bool = true
+static var behind_on: bool = true
+static var reticle_on: bool = false
 
 var _value_label: Label
 var _slider: HSlider
 var _on_btn: Button
 var _off_btn: Button
 var _back: Button
+var _top_btn: Button
+var _behind_btn: Button
+var _behind_at_open: bool = true
+var _ret_on_btn: Button
+var _ret_off_btn: Button
 
 
 func _ready() -> void:
@@ -43,7 +55,7 @@ func _ready() -> void:
 	sb.content_margin_left = 40
 	sb.content_margin_right = 40
 	panel.add_theme_stylebox_override("panel", sb)
-	panel.position = Vector2(90, 240)
+	panel.position = Vector2(90, 200)
 	panel.custom_minimum_size = Vector2(920, 0)
 	add_child(panel)
 	var col := VBoxContainer.new()
@@ -87,13 +99,48 @@ func _ready() -> void:
 	_off_btn.pressed.connect(func() -> void: _set_shake(false))
 	tog.add_child(_off_btn)
 
+	# Tipo de câmera (teste).
+	var row3 := HBoxContainer.new()
+	row3.add_theme_constant_override("separation", 30)
+	col.add_child(row3)
+	row3.add_child(_item_label("Tipo de câmera", "trocar recomeça a sala atual"))
+	var tog3 := HBoxContainer.new()
+	tog3.add_theme_constant_override("separation", 0)
+	tog3.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row3.add_child(tog3)
+	_top_btn = _toggle_button("De cima")
+	_top_btn.pressed.connect(func() -> void: _set_behind(false))
+	tog3.add_child(_top_btn)
+	_behind_btn = _toggle_button("Atrás")
+	_behind_btn.pressed.connect(func() -> void: _set_behind(true))
+	tog3.add_child(_behind_btn)
+
+	# Retícula (só na câmera atrás).
+	var row4 := HBoxContainer.new()
+	row4.add_theme_constant_override("separation", 30)
+	col.add_child(row4)
+	row4.add_child(_item_label("Retícula", "câmera atrás: ataque vai para o centro da tela"))
+	var tog4 := HBoxContainer.new()
+	tog4.add_theme_constant_override("separation", 0)
+	tog4.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row4.add_child(tog4)
+	_ret_on_btn = _toggle_button("Ligada")
+	_ret_on_btn.pressed.connect(func() -> void: _set_reticle(true))
+	tog4.add_child(_ret_on_btn)
+	_ret_off_btn = _toggle_button("Desligada")
+	_ret_off_btn.pressed.connect(func() -> void: _set_reticle(false))
+	tog4.add_child(_ret_off_btn)
+
 	_back = UIStyle.menu_button("Voltar", 38)
-	_back.position = Vector2(90, 740)
+	_back.position = Vector2(90, 790)
 	_back.pressed.connect(_close)
 	add_child(_back)
 
 	_on_aim_changed(aim_follow)
 	_set_shake(shake_on)
+	_behind_at_open = behind_on
+	_set_behind(behind_on)
+	_set_reticle(reticle_on)
 	_slider.call_deferred("grab_focus")
 
 
@@ -105,6 +152,10 @@ func _read_current() -> void:
 		aim_follow = float(game.rules.get(AIM_PROPERTY))
 	if SHAKE_PROPERTY in game.rules:
 		shake_on = bool(game.rules.get(SHAKE_PROPERTY))
+	if BEHIND_PROPERTY in game.rules:
+		behind_on = bool(game.rules.get(BEHIND_PROPERTY))
+	if RETICLE_PROPERTY in game.rules:
+		reticle_on = bool(game.rules.get(RETICLE_PROPERTY))
 
 
 ## Aplica os valores guardados (chamado ao montar a cena, caso o jogo recarregue).
@@ -117,6 +168,10 @@ static func apply_saved() -> void:
 		game.rules.set(AIM_PROPERTY, aim_follow)
 	if SHAKE_PROPERTY in game.rules:
 		game.rules.set(SHAKE_PROPERTY, shake_on)
+	if BEHIND_PROPERTY in game.rules:
+		game.rules.set(BEHIND_PROPERTY, behind_on)
+	if RETICLE_PROPERTY in game.rules:
+		game.rules.set(RETICLE_PROPERTY, reticle_on)
 
 
 func _item_label(title_text: String, hint: String) -> Control:
@@ -190,6 +245,20 @@ func _set_shake(on: bool) -> void:
 	apply_saved()
 
 
+func _set_behind(on: bool) -> void:
+	behind_on = on
+	_top_btn.set_pressed_no_signal(not on)
+	_behind_btn.set_pressed_no_signal(on)
+	apply_saved()
+
+
+func _set_reticle(on: bool) -> void:
+	reticle_on = on
+	_ret_on_btn.set_pressed_no_signal(on)
+	_ret_off_btn.set_pressed_no_signal(not on)
+	apply_saved()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause"):
 		get_viewport().set_input_as_handled()
@@ -199,3 +268,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _close() -> void:
 	closed.emit()
 	queue_free()
+	if behind_on != _behind_at_open:
+		# Câmera e paredes montam de outro jeito: recomeça a cena.
+		var tree := get_tree()
+		tree.paused = false
+		tree.reload_current_scene.call_deferred()
