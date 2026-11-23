@@ -427,6 +427,8 @@ func _build_laboratorio() -> void:
 	var open: bool = Game.progress.get("lab_open", false)
 	_floor_mat = Look.tiles(Look.tex("Tiles107", Vector2(2.0, 2.0), Color(0.55, 0.56, 0.55), {"tile_size": 0.4, "grass_amount": 0.15 if open else 0.4, "grass_color": Color(0.58, 0.5, 0.38)}))
 	_room(56, -14, 71, 4, Color.WHITE, {"E": [[-2.0, 3.0]]})
+	_parede_lisa(55.74, -14.0, 4.0)
+	_parede_lisa(71.26, -14.0, 4.0, -2.0)
 	_label("Laboratório", Vector3(63.5, 0, 2))
 	var metal := Look.surface(Color(0.4, 0.43, 0.46), Look.tex("MetalPlates014", Vector2(1.6, 1.6), Color(0.85, 0.88, 0.9), {"outline": 0.03}))
 	for x in [59.0, 63.5, 68.0]:
@@ -468,6 +470,8 @@ func _on_lab_opened() -> void:
 func _build_treino() -> void:
 	_floor_mat = Look.surface(Color(0.5, 0.33, 0.22), Look.tex("WoodFloor051", Vector2(1.8, 1.8), Color(0.88, 0.82, 0.76)))
 	_room(89, -14, 104, 4, Color.WHITE, {"W": [[-2.0, 3.0]]})
+	_parede_lisa(104.26, -14.0, 4.0)
+	_parede_lisa(88.74, -14.0, 4.0, -2.0)
 	_label("Treino: ginásio", Vector3(96.5, 0, 2))
 	var debris := Look.surface(Color(0.45, 0.43, 0.4), Look.tex("Concrete044D", Vector2(1.5, 1.5), Color(0.92, 0.88, 0.82), {"outline": 0.04}))
 	for p in [Vector3(91.5, 0, -1.5), Vector3(93.5, 0, 1.5), Vector3(92.5, 0, -4.5)]:
@@ -521,6 +525,23 @@ func _update_paredes_laterais(pos: Vector3) -> void:
 ## Piso do saguão: ladrilho bege antigo (Tiles139) com areia acumulada.
 func _saguao_floor() -> Material:
 	return Look.tiles(Look.tex("Tiles139", Vector2(2.0, 2.0), Color(0.88, 0.85, 0.8), {"tile_size": 0.6, "grass_amount": 0.3, "grass_color": Color(0.58, 0.5, 0.38)}))
+
+
+## Parede lateral lisa, de uma peça só (só visual), por cima da estrutura em
+## faixas de 1 m: ali o tijolo aparecia em degraus, com as fiadas de lado.
+## door_z: centro da porta de 3 m nessa parede (NAN = sem porta).
+func _parede_lisa(x: float, z0: float, z1: float, door_z: float = NAN) -> void:
+	var hh := 8.0
+	var mat := Look.brick()
+	var spans: Array = [[z0 - 0.5, z1]]
+	if not is_nan(door_z):
+		spans = [[z0 - 0.5, door_z - 1.5], [door_z + 1.5, z1]]
+		# Verga por cima da porta.
+		Look.piece(self, Look.box(Vector3(0.5, hh - WALL_H, 3.0)), mat, Vector3(x, (hh + WALL_H) * 0.5, door_z))
+	for sp in spans:
+		var a: float = sp[0]
+		var b: float = sp[1]
+		Look.piece(self, Look.box(Vector3(0.5, hh, b - a)), mat, Vector3(x, hh * 0.5, (a + b) * 0.5))
 
 
 ## Paredes de dentro: reboco descascado mostrando o tijolo (PaintedPlaster016).
