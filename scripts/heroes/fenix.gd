@@ -29,6 +29,7 @@ func _use_model() -> void:
 	model = FenixModel.new()
 	model.hero = self
 	visual.add_child(model)
+	model.add_hand_fire()
 
 
 func _fx() -> FenixStats:
@@ -78,6 +79,12 @@ func claw_attack() -> bool:
 	_combo_step = step + 1
 	_combo_timer = s.combo_reset_time
 	model.play_once("Sword_Attack" if finisher else ("Punch_Jab" if step % 2 == 0 else "Punch_Cross"), 1.6)
+	# Fogo azul na mão que bate (esquerda no jab, direita no cruzado); no golpe
+	# final as duas acendem e abre a onda de fogo no chão.
+	if finisher:
+		model.ignite_hands("LR", 0.55, true)
+	else:
+		model.ignite_hands("L" if step % 2 == 0 else "R", 0.3)
 	var color := Color(1.0, 0.55, 0.2, 0.55) if not finisher else Color(1.0, 0.3, 0.1, 0.75)
 	Game.flash_cone(global_position, facing, s.claw_range, s.claw_arc_degrees, color, 0.12)
 	var hit_any := false

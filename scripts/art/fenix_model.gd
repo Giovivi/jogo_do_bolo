@@ -23,6 +23,8 @@ const RUN_ANIM_SPEED := 4.2
 var hero: Hero
 var anim: AnimationPlayer
 var _one_shot: String = ""
+## Fogo azul de cada mão ("L"/"R"), criado só por quem chama add_hand_fire() (Fênix).
+var hand_fire: Dictionary = {}
 
 
 func _ready() -> void:
@@ -81,6 +83,35 @@ func _on_finished(anim_name: String) -> void:
 	# A queda fica parada no último quadro até o herói ser revivido.
 	if anim_name == _one_shot and anim_name != DEATH:
 		_one_shot = ""
+
+
+## Cria o fogo azul das duas mãos (chama no antebraço, rastro e garras de fogo).
+func add_hand_fire() -> void:
+	var found := find_children("*", "Skeleton3D", true, false)
+	if found.is_empty():
+		return
+	var sk := found.front() as Skeleton3D
+	for side in ["L", "R"]:
+		var f := HandFire.new()
+		f.style = HandFire.Style.GARRAS
+		f.skeleton = sk
+		f.hand_bone = sk.find_bone("DEF-hand." + side)
+		f.forearm_bone = sk.find_bone("DEF-forearm." + side)
+		for finger in ["f_index", "f_middle", "f_ring"]:
+			var b := sk.find_bone("DEF-%s.03.%s" % [finger, side])
+			if b >= 0:
+				f.tip_bones.append(b)
+		if f.hand_bone < 0:
+			continue
+		add_child(f)
+		hand_fire[side] = f
+
+
+## Acende o fogo das mãos indicadas ("L", "R" ou "LR") por `duration` segundos.
+func ignite_hands(sides: String, duration: float, strong: bool = false) -> void:
+	for side in hand_fire:
+		if side in sides:
+			(hand_fire[side] as HandFire).ignite(duration, strong)
 
 
 ## Texturas vêm do glb; o fogo fica sem sombra para brilhar.
