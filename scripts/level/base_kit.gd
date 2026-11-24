@@ -65,6 +65,10 @@ static func mat(key: String) -> Material:
 			m = liso(Color(0.3, 0.33, 0.37), 0.65, 0.38)
 		"peca_escura":
 			m = liso(Color(0.13, 0.14, 0.16), 0.6, 0.45)
+		"caixa":
+			m = liso(Color(0.17, 0.19, 0.21), 0.55, 0.5)
+		"caixa_clara":
+			m = liso(Color(0.42, 0.45, 0.48), 0.6, 0.35)
 		"plataforma":
 			m = metal("MetalPlates004", 1.0, Color(0.5, 0.53, 0.58), 0.55, 0.5)
 		"porta":
@@ -94,6 +98,11 @@ static func mat(key: String) -> Material:
 			s.albedo_color = Color(0.85, 0.87, 0.9)
 			s.roughness = 0.6
 			m = s
+		"tinta_amarela":
+			var s2 := StandardMaterial3D.new()
+			s2.albedo_color = Color(0.95, 0.75, 0.12)
+			s2.roughness = 0.6
+			m = s2
 		"tinta_laranja":
 			var s := StandardMaterial3D.new()
 			s.albedo_color = Color(0.95, 0.42, 0.08)
@@ -384,3 +393,215 @@ static func _min3(a: Vector3, b: Vector3) -> Vector3:
 
 static func _max3(a: Vector3, b: Vector3) -> Vector3:
 	return Vector3(maxf(a.x, b.x), maxf(a.y, b.y), maxf(a.z, b.z))
+
+
+# ================================================================ estruturas (prancha v2)
+
+## Caixa de carga militar (no lugar dos blocos verdes): metal escuro com
+## quinas chanfradas, faixa laranja, tampa e alças. Colide do tamanho dela.
+static func caixa_carga(parent: Node3D, centro_chao: Vector3, tam: Vector3) -> void:
+	var c := 0.12
+	var hx := tam.x * 0.5
+	var hz := tam.z * 0.5
+	var perfil := PackedVector2Array([Vector2(-hx + c, -hz), Vector2(hx - c, -hz), Vector2(hx, -hz + c), Vector2(hx, hz - c), Vector2(hx - c, hz), Vector2(-hx + c, hz), Vector2(-hx, hz - c), Vector2(-hx, -hz + c)])
+	# Extrudado para cima com cima = +z: lado = z × y = -x; espelha x.
+	var p2 := PackedVector2Array()
+	for p in perfil:
+		p2.append(Vector2(-p.x, p.y))
+	var a := centro_chao
+	prisma(parent, p2, a, a + Vector3(0, tam.y, 0), Vector3.BACK, mat("caixa"))
+	# Faixa laranja no meio e tampa mais clara.
+	var cinta := PackedVector2Array()
+	for p in p2:
+		cinta.append(p * Vector2((hx + 0.015) / hx, (hz + 0.015) / hz))
+	prisma(parent, cinta, a + Vector3(0, tam.y * 0.55, 0), a + Vector3(0, tam.y * 0.55 + 0.1, 0), Vector3.BACK, mat("tinta_laranja"), false)
+	var tampa := PackedVector2Array()
+	for p in p2:
+		tampa.append(p * Vector2((hx - 0.08) / hx, (hz - 0.08) / hz))
+	prisma(parent, tampa, a + Vector3(0, tam.y, 0), a + Vector3(0, tam.y + 0.04, 0), Vector3.BACK, mat("peca"), false)
+	# Alças nas faces menores.
+	for s: float in [-1.0, 1.0]:
+		if tam.x <= tam.z:
+			peca(parent, a + Vector3(s * hx - 0.03, tam.y * 0.75, -0.2), a + Vector3(s * hx + 0.03, tam.y * 0.82, 0.2), mat("peca"))
+		else:
+			peca(parent, a + Vector3(-0.2, tam.y * 0.75, s * hz - 0.03), a + Vector3(0.2, tam.y * 0.82, s * hz + 0.03), mat("peca"))
+
+
+## Bancada de trabalho (ref. laboratório): tampo com a quina da frente
+## chanfrada, gaveteiro, monitor e cadeira. "frente" = onde fica a cadeira.
+static func bancada(parent: Node3D, pos: Vector3, frente: Vector3, largura: float, i: int) -> void:
+	var fw := Vector3(frente.x, 0, frente.z).normalized()
+	var side := Vector3.UP.cross(fw)
+	var a := pos - side * largura * 0.5
+	var b := pos + side * largura * 0.5
+	# Perfil de lado (x+ = para trás): tampo grosso com a frente chanfrada.
+	var tampo := PackedVector2Array([Vector2(-0.45, 0.82), Vector2(0.45, 0.82), Vector2(0.45, 0.95), Vector2(-0.35, 0.95), Vector2(-0.45, 0.9)])
+	prisma(parent, tampo, a, b, Vector3.UP, mat("peca"), false)
+	# Base fechada (painel de fundo) e gaveteiro de um lado: colide.
+	var base := PackedVector2Array([Vector2(0.1, 0.0), Vector2(0.45, 0.0), Vector2(0.45, 0.82), Vector2(0.1, 0.82)])
+	prisma(parent, base, a, b, Vector3.UP, mat("peca_escura"))
+	var g0 := b - side * 0.6
+	prisma(parent, PackedVector2Array([Vector2(-0.4, 0.0), Vector2(0.1, 0.0), Vector2(0.1, 0.82), Vector2(-0.4, 0.82)]), g0, b, Vector3.UP, mat("peca_escura"))
+	# Friso de LED na frente do tampo.
+	prisma(parent, PackedVector2Array([Vector2(-0.46, 0.86), Vector2(-0.44, 0.86), Vector2(-0.44, 0.89), Vector2(-0.46, 0.89)]), a, b, Vector3.UP, mat("led_fraco"), false)
+	# Monitor.
+	var mc: Vector3 = pos + fw * 0.05 - side * largura * 0.12 + Vector3(0, 1.3, 0)
+	var mo := Look.piece(parent, Look.box(Vector3(0.95, 0.58, 0.05)), mat("peca_escura"), mc)
+	mo.look_at_from_position(mc, mc + fw, Vector3.UP)
+	var q := QuadMesh.new()
+	q.size = Vector2(0.88, 0.5)
+	var t := Look.piece(parent, q, tela_mat(i), mc + fw * 0.03)
+	t.look_at_from_position(mc + fw * 0.03, mc - fw, Vector3.UP)
+	peca(parent, mc - Vector3(0.03, 0.4, 0.03), mc + Vector3(0.03, -0.25, 0.03), mat("peca"))
+	cadeira(parent, pos + fw * 0.75 - side * largura * 0.12, -fw)
+
+
+## Cadeira de escritório simples (só desenho).
+static func cadeira(parent: Node3D, pos: Vector3, olha: Vector3) -> void:
+	var fw := olha.normalized()
+	var m := mat("peca_escura")
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.04
+	cyl.bottom_radius = 0.04
+	cyl.height = 0.45
+	Look.piece(parent, cyl, mat("peca"), pos + Vector3(0, 0.25, 0))
+	var pe := CylinderMesh.new()
+	pe.top_radius = 0.3
+	pe.bottom_radius = 0.32
+	pe.height = 0.05
+	pe.radial_segments = 5
+	Look.piece(parent, pe, mat("peca"), pos + Vector3(0, 0.04, 0))
+	var assento := Look.piece(parent, Look.box(Vector3(0.5, 0.1, 0.5)), m, pos + Vector3(0, 0.52, 0))
+	assento.look_at_from_position(assento.position, assento.position + fw, Vector3.UP)
+	var cp: Vector3 = pos - fw * 0.24 + Vector3(0, 0.9, 0)
+	var costas := Look.piece(parent, Look.box(Vector3(0.46, 0.65, 0.08)), m, cp)
+	costas.look_at_from_position(cp, cp + fw, Vector3.UP)
+	costas.rotate_object_local(Vector3.RIGHT, -0.15)
+
+
+## Armário alto de parede com o fundo inclinado e luz embaixo (ref. lab).
+## o/dir/nrm: parede (ver ponto()); u0..u1 ao longo; y0 = fundo.
+static func armario_parede(parent: Node3D, o: Vector3, dir: Vector3, nrm: Vector3, u0: float, u1: float, y0: float) -> void:
+	var a := ponto(o, dir, nrm, u0, 0, 0)
+	var b := ponto(o, dir, nrm, u1, 0, 0)
+	prisma(parent, _perfil_parede(dir, nrm, [Vector2(0, y0 - 0.25), Vector2(0.25, y0), Vector2(0.55, y0), Vector2(0.55, y0 + 1.1), Vector2(0.45, y0 + 1.2), Vector2(0, y0 + 1.2)]), a, b, Vector3.UP, mat("caixa_clara"))
+	# Divisão das portas e luz embaixo.
+	var meio := (u0 + u1) * 0.5
+	peca(parent, _min3(ponto(o, dir, nrm, meio - 0.01, 0.55, y0 + 0.05), ponto(o, dir, nrm, meio + 0.01, 0.56, y0 + 1.1)), _max3(ponto(o, dir, nrm, meio - 0.01, 0.55, y0 + 0.05), ponto(o, dir, nrm, meio + 0.01, 0.56, y0 + 1.1)), mat("peca_escura"))
+	prisma(parent, _perfil_parede(dir, nrm, [Vector2(0.27, y0 - 0.01), Vector2(0.5, y0 - 0.01), Vector2(0.5, y0), Vector2(0.27, y0)]), a, b, Vector3.UP, mat("led"), false)
+
+
+## Tanque de gás em pé (hangar), com anéis e válvula.
+static func tanque(parent: Node3D, pos: Vector3, r: float, h: float) -> void:
+	var body := StaticBody3D.new()
+	body.collision_layer = Game.LAYER_WORLD
+	body.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var sh := CylinderShape3D.new()
+	sh.radius = r
+	sh.height = h
+	cs.shape = sh
+	cs.position.y = h * 0.5
+	body.add_child(cs)
+	body.position = pos
+	parent.add_child(body)
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = r * 0.8
+	cyl.bottom_radius = r
+	cyl.height = h
+	cyl.radial_segments = 20
+	Look.piece(body, cyl, mat("caixa_clara"), Vector3(0, h * 0.5, 0))
+	for y: float in [0.25, h * 0.5, h - 0.4]:
+		var an := CylinderMesh.new()
+		an.top_radius = r + 0.03
+		an.bottom_radius = r + 0.03
+		an.height = 0.1
+		an.radial_segments = 20
+		Look.piece(body, an, mat("tinta_laranja") if y == h * 0.5 else mat("peca_escura"), Vector3(0, y, 0))
+	peca(body, Vector3(-0.06, h, -0.06), Vector3(0.06, h + 0.25, 0.06), mat("peca"))
+
+
+## Estante industrial com caixas (depósito): colunas, prateleiras e caixas.
+static func estante(parent: Node3D, pos: Vector3, frente: Vector3, largura: float, h: float, i: int) -> void:
+	var fw := Vector3(frente.x, 0, frente.z).normalized()
+	var side := Vector3.UP.cross(fw)
+	var prof := 0.9
+	var lo := pos - side * largura * 0.5 - fw * prof * 0.5
+	# Colisão única do volume inteiro (é alta: a câmera desvia).
+	var body := StaticBody3D.new()
+	body.collision_layer = Game.LAYER_WORLD
+	body.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(largura, h, prof) if absf(side.x) > 0.5 else Vector3(prof, h, largura)
+	cs.shape = bs
+	cs.position = pos + Vector3(0, h * 0.5, 0)
+	body.add_child(cs)
+	parent.add_child(body)
+	for k in [0.0, 1.0]:
+		for f in [0.0, 1.0]:
+			var cp: Vector3 = lo + side * (largura * k) + fw * (prof * f)
+			peca(parent, cp + Vector3(-0.05, 0, -0.05), cp + Vector3(0.05, h, 0.05), mat("tinta_laranja"))
+	var niveis := int(h / 1.2)
+	for n in niveis + 1:
+		var y := 0.15 + n * (h - 0.2) / niveis
+		peca(parent, _min3(lo + Vector3(0, y, 0), lo + side * largura + fw * prof + Vector3(0, y + 0.06, 0)), _max3(lo + Vector3(0, y, 0), lo + side * largura + fw * prof + Vector3(0, y + 0.06, 0)), mat("peca"))
+		if n == niveis:
+			break
+		var x := 0.15
+		var j := 0
+		while x < largura - 0.6:
+			var w := 0.5 + 0.35 * float((i + n * 3 + j) % 3)
+			if x + w > largura - 0.1:
+				break
+			var ch := 0.45 + 0.15 * float((i + j + n) % 2)
+			var c0: Vector3 = lo + side * x + fw * 0.12 + Vector3(0, y + 0.06, 0)
+			var c1: Vector3 = lo + side * (x + w) + fw * (prof - 0.12) + Vector3(0, y + 0.06 + ch, 0)
+			peca(parent, _min3(c0, c1), _max3(c0, c1), mat("caixa") if (i + j + n) % 3 != 0 else mat("caixa_clara"))
+			x += w + 0.1
+			j += 1
+
+
+## Treliça do teto para as salas de parede inclinada: viga reta com mãos
+## francesas diagonais que encostam no começo da parte inclinada.
+static func trelica(parent: Node3D, a: Vector3, b: Vector3, h: float, d: float) -> void:
+	# a, b: pontos no chão nas faces das paredes opostas (viga entre eles).
+	var dir := (b - a).normalized()
+	var y := h - 0.9
+	var pa := a + dir * d + Vector3(0, y, 0)
+	var pb := b - dir * d + Vector3(0, y, 0)
+	var perfil := PackedVector2Array([Vector2(-0.14, -0.22), Vector2(0.14, -0.22), Vector2(0.14, 0.22), Vector2(-0.14, 0.22)])
+	prisma(parent, perfil, pa, pb, Vector3.UP, mat("peca_escura"))
+	for s in [[a, dir], [b, -dir]]:
+		var base: Vector3 = s[0]
+		var dd: Vector3 = s[1]
+		var p0: Vector3 = base + dd * 0.35 + Vector3(0, h - 2.6, 0)
+		var p1: Vector3 = base + dd * (d + 1.4) + Vector3(0, y - 0.1, 0)
+		prisma(parent, PackedVector2Array([Vector2(-0.1, -0.1), Vector2(0.1, -0.1), Vector2(0.1, 0.1), Vector2(-0.1, 0.1)]), p0, p1, Vector3.UP, mat("peca"), false)
+		# Luz embutida na viga.
+	peca(parent, _min3(pa + Vector3(0, -0.23, 0) + Vector3.UP.cross(dir) * 0.04, pb + Vector3(0, -0.22, 0) - Vector3.UP.cross(dir) * 0.04), _max3(pa + Vector3(0, -0.23, 0) + Vector3.UP.cross(dir) * 0.04, pb + Vector3(0, -0.22, 0) - Vector3.UP.cross(dir) * 0.04), mat("led_fraco"))
+
+
+## Marcação de pouso de drones no piso (círculo e "H" amarelos).
+static func heliponto(parent: Node3D, c: Vector3, r: float) -> void:
+	var n := 40
+	for k in n:
+		var a0 := TAU * k / n
+		var p := c + Vector3(cos(a0), 0, sin(a0)) * r + Vector3(0, 0.004, 0)
+		var seg := Look.piece(parent, Look.box(Vector3(TAU * r / n + 0.02, 0.008, 0.22)), mat("tinta_amarela"), p)
+		seg.rotation.y = -a0 + PI * 0.5
+	for e in [[Vector3(-1.1, 0, -1.4), Vector3(-0.75, 0.008, 1.4)], [Vector3(0.75, 0, -1.4), Vector3(1.1, 0.008, 1.4)], [Vector3(-0.75, 0, -0.18), Vector3(0.75, 0.008, 0.18)]]:
+		peca(parent, c + e[0] + Vector3(0, 0.004, 0), c + e[1] + Vector3(0, 0.004, 0), mat("tinta_amarela"))
+
+
+## Ponte rolante do hangar: dois trilhos nas paredes compridas e a viga
+## móvel atravessada, com o carrinho e o gancho.
+static func ponte_rolante(parent: Node3D, r: Rect2, h: float) -> void:
+	var y := h - 1.9
+	for z: float in [r.position.y + 0.9, r.end.y - 0.9]:
+		peca(parent, Vector3(r.position.x + 1.0, y, z - 0.18), Vector3(r.end.x - 1.0, y + 0.35, z + 0.18), mat("tinta_amarela"))
+	var x := r.get_center().x + 2.0
+	peca(parent, Vector3(x - 0.3, y + 0.35, r.position.y + 0.75), Vector3(x + 0.3, y + 0.85, r.end.y - 0.75), mat("tinta_amarela"))
+	peca(parent, Vector3(x - 0.45, y + 0.0, -0.5 + r.get_center().y), Vector3(x + 0.45, y + 0.35, 0.5 + r.get_center().y), mat("peca_escura"))
+	peca(parent, Vector3(x - 0.02, y - 1.8, r.get_center().y - 0.02), Vector3(x + 0.02, y, r.get_center().y + 0.02), mat("peca"))
+	peca(parent, Vector3(x - 0.18, y - 2.0, r.get_center().y - 0.08), Vector3(x + 0.18, y - 1.8, r.get_center().y + 0.08), mat("tinta_laranja"))

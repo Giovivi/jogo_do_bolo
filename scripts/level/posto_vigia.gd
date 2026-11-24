@@ -58,12 +58,14 @@ var _floor_tex: Array = ["Concrete044D", 2.5, Color(0.8, 0.8, 0.82)]
 const WALL_TEX := ["Concrete031", 3.0, Color(0.9, 0.92, 0.95)]
 ## Visual das paredes (prancha fase1-base-secreta): "A" sala de controle,
 ## "B" paredes inclinadas no alto, "C" painéis de hexágonos.
-static var estilo := "A"
+static var estilo := "B"
 ## Salas e corredores registrados para o acabamento (_vestir, no fim).
 var _salas: Array[Dictionary] = []
 var _corredores: Array[Dictionary] = []
 var _pisos: Array = []
 var _consoles: Array = []
+## Salas com cara de laboratório: armários altos nas paredes.
+var _labs: Array[Rect2] = []
 const CORRIDOR_TEX := ["Concrete044D", 2.5, Color(0.8, 0.8, 0.82)]
 
 
@@ -146,6 +148,7 @@ func _build_entrada() -> void:
 	_console(-6.9, 4.5, Vector3.RIGHT)
 	_armario(1.0, 7.3, Vector3.FORWARD)
 	_armario(2.2, 7.3, Vector3.FORWARD)
+	_bancada(-3.5, 7.25, Vector3.FORWARD)
 	# 4 soldados em 2 grupos.
 	_enemy_group("Entrada A", SOLDIER, 2, [Vector3(4, 0, -3), Vector3(3, 0, 3)])
 	# Plataforma de 1 m no canto: sobe com um pulo.
@@ -173,6 +176,7 @@ func _build_triagem() -> void:
 	_crate(25, -3, 2, 2)
 	_crate(35, 4, 2, 2)
 	_crate(26, 5, 1, 2)
+	_arco_consoles(Vector3(30, 0, 11.5), 4.2, [-150.0, -120.0, -90.0, -60.0, -30.0])
 	_label("2. Triagem", Vector3(30, 0, 8.5))
 	# 3 baús escolhidos entre 5 pontos candidatos.
 	_chest_candidates("Triagem baús", [Vector3(22, 1, -8), Vector3(38, 2, -8), Vector3(38, 0, 8), Vector3(22, 0, 8), Vector3(29, 0, -3)], 3)
@@ -196,6 +200,10 @@ func _build_secreta() -> void:
 	_pit(21, -15, 25, -11)
 	_room(13, -28, 25, -18, c, {"S": [[23.0, 4.0, 4.0]]})
 	_chest(Vector3(17, 0, -24))
+	_labs.append(Rect2(13, -28, 12, 10))
+	_bancada(13.75, -26.0, Vector3.RIGHT)
+	_bancada(13.75, -21.5, Vector3.RIGHT)
+	_armario(24.3, -26.5, Vector3.LEFT)
 	_label("sala secreta", Vector3(19, 0, -20))
 	_hint(Rect2(21, -11, 4, 1.5), "Vão de 4 m: só o Fênix passa. Pule e segure Espaço para planar.")
 
@@ -224,6 +232,9 @@ func _build_celas() -> void:
 	# Plataformas de 1 m nos cantos do sul, boas para defender a cela.
 	_platform(50, 5, 54, 10, 1.0)
 	_platform(66, 5, 70, 10, 1.0)
+	for ax in [52.0, 53.2, 66.8, 68.0]:
+		_armario(ax, -9.3, Vector3.BACK)
+	_bancada(60, 9.25, Vector3.FORWARD, 2.8)
 	if not already_rescued:
 		_hint(Rect2(50, -10, 20, 20), "A cela do Feixe! Use o console (F) para destravar e aguente 60 s.")
 	_corridor_x(70, 78, 0.0, c)
@@ -239,7 +250,7 @@ func _build_hangar() -> void:
 	# Passarela alta (inalcançável a pé) com o interruptor.
 	var walkway := _box_body(Vector3(88, 1.5, -10.5), Vector3(16, 3, 3), Color(0.5, 0.52, 0.58), Game.LAYER_WALKWAY)
 	walkway.name = "Passarela"
-	Look.texture_std(walkway.get_child(1).material_override, "DiamondPlate008A", 1.5, Color(0.62, 0.65, 0.7))
+	walkway.get_child(1).material_override = BaseKit.mat("plataforma")
 	var sw := BeamSwitch.new()
 	sw.position = Vector3(88, 3.5, -10.5)
 	add_child(sw)
@@ -248,7 +259,6 @@ func _build_hangar() -> void:
 	service.position = Vector3(99.5, 0, -12.25)
 	add_child(service)
 	service.setup(Vector3(4, DOOR_H, 0.6), Color(0.75, 0.6, 0.2))
-	Look.texture_std(service._mat, "PaintedMetal016", 1.5)
 	_service_door = service
 	sw.triggered.connect(_on_switch_triggered)
 	# Torre de caixas no sudoeste (1 m e 2 m), longe da passarela de 3 m.
@@ -256,6 +266,12 @@ func _build_hangar() -> void:
 	_platform(80, 4, 84, 7, 2.0)
 	_crate(87, 4, 2, 2)
 	_crate(96, -2, 2, 2)
+	_crate(91.5, 9.6, 2.2, 1.5)
+	_crate(91.5, 9.6, 1.4, 1.1, 1.2, 1.0)
+	_consoles.append(["heliponto", Vector3(90, 0, 0), Vector3.BACK, 4.0])
+	_consoles.append(["ponte", Vector3(90, 0, 0), Vector3.BACK, 0.0])
+	for tz in [-4.5, -3.0, 4.5, 6.0]:
+		_consoles.append(["tanque", Vector3(101.1, 0, tz), Vector3.LEFT, 0.6])
 	_chest_candidates("Hangar baú", [Vector3(99, 0, 9), Vector3(82, 2, 5.5)], 1)
 	_enemy_group("Hangar drones 1", DRONE, 2, [Vector3(86, 0, -4), Vector3(84, 0, -6)])
 	_enemy_group("Hangar drones 2", DRONE, 2, [Vector3(96, 0, -5), Vector3(98, 0, 2)])
@@ -289,6 +305,9 @@ func _build_volta() -> void:
 	_crate(57, -25, 2, 2)
 	_crate(63, -22, 2, 1)
 	_crate(56, -30, 1, 2)
+	_estante(56, -33.2, Vector3.BACK)
+	_estante(60.5, -33.2, Vector3.BACK, 3.0)
+	_estante(52.8, -28, Vector3.RIGHT)
 	_chest(Vector3(67, 1, -32))
 	_enemy_group("Depósito A", SOLDIER, 2, [Vector3(58, 0, -29), Vector3(62, 0, -31)])
 	_enemy_group("Depósito escudo", SHIELD_SOLDIER, 1, [Vector3(56, 0, -20), Vector3(60, 0, -27)])
@@ -315,6 +334,10 @@ func _build_volta() -> void:
 	blast.setup(Vector3(0.8, DOOR_H, 4), Color(0.55, 0.6, 0.65))
 	blast.opened_door.connect(_on_blast_door_opened)
 	_chest(Vector3(32, 0, -22), true)
+	_labs.append(Rect2(26, -24, 10, 10))
+	_armario(26.7, -21.5, Vector3.RIGHT)
+	_armario(26.7, -20.3, Vector3.RIGHT)
+	_armario(26.7, -17.0, Vector3.RIGHT)
 	_hint(Rect2(37, -21, 8, 4), "Porta blindada: com o Feixe, segure Q para cortar com o laser.")
 	# Saída: sobe pelo norte do cofre e volta para cima da entrada.
 	_floor_tex = CORRIDOR_TEX
@@ -328,6 +351,8 @@ func _build_volta() -> void:
 	_room(-6, -40, 6, -26, Color(0.3, 0.42, 0.36), {"E": [[-34.0, 4.0]]})
 	_label("5. Saída", Vector3(0, 0, -27.5))
 	_chest(Vector3(3, 0, -38), false, true)
+	_console(2.0, -26.75, Vector3.FORWARD)
+	_bancada(-3.5, -26.75, Vector3.FORWARD, 2.0)
 	var pad := _box_visual(Vector3(_exit_rect.get_center().x, 0.06, _exit_rect.get_center().y), Vector3(_exit_rect.size.x, 0.1, _exit_rect.size.y), Color(0.3, 0.95, 0.6))
 	pad.name = "SaidaPad"
 	_label("SAÍDA", Vector3(_exit_rect.get_center().x, 0, _exit_rect.get_center().y))
@@ -813,10 +838,9 @@ func _update_hints(pos: Vector3) -> void:
 ## Paredes entre a câmera e o herói, perto dele, ficam transparentes.
 
 
-func _crate(cx: float, cz: float, sx: float, sz: float) -> void:
-	var crate := _box_body(Vector3(cx, 0.6, cz), Vector3(sx, 1.2, sz), Color(0.5, 0.45, 0.35), Game.LAYER_WORLD)
-	# Caixote militar de chapa, verde-oliva.
-	Look.texture_std(crate.get_child(1).material_override, "MetalPlates014", 1.2, Color(0.62, 0.66, 0.45))
+## Caixa de carga militar de 1,2 m (cobertura e degrau).
+func _crate(cx: float, cz: float, sx: float, sz: float, y: float = 0.0, h: float = 1.2) -> void:
+	BaseKit.caixa_carga(self, Vector3(cx, y, cz), Vector3(sx, h, sz))
 
 
 func _box_body(center: Vector3, size: Vector3, color: Color, layer: int) -> StaticBody3D:
@@ -922,6 +946,22 @@ func _armario(x: float, z: float, frente: Vector3) -> void:
 	_consoles.append(["armario", Vector3(x, 0, z), frente, 1.1])
 
 
+func _bancada(x: float, z: float, frente: Vector3, largura: float = 2.4) -> void:
+	_consoles.append(["bancada", Vector3(x, 0, z), frente, largura])
+
+
+func _estante(x: float, z: float, frente: Vector3, largura: float = 4.0) -> void:
+	_consoles.append(["estante", Vector3(x, 0, z), frente, largura])
+
+
+## Fileira de consoles em arco (ref. sala de comando), virados para fora
+## do centro: o operador fica do lado de fora olhando para o centro.
+func _arco_consoles(centro: Vector3, raio: float, angulos: Array) -> void:
+	for a in angulos:
+		var d := Vector3(cos(deg_to_rad(a)), 0, sin(deg_to_rad(a)))
+		_consoles.append(["console", centro + d * raio, d, 2.2])
+
+
 # ================================================================ acabamento da base
 
 ## Veste salas e corredores: rodapé com LED, pilares chanfrados, telas,
@@ -942,7 +982,7 @@ func _vestir() -> void:
 		for side in ["N", "S", "W", "E"]:
 			if side in sala["skip"]:
 				continue
-			_vestir_parede(root, r, h, side, sala["open"].get(side, []), sala["glass"].get(side, []), i)
+			_vestir_parede(root, r, h, side, sala["open"].get(side, []), sala["glass"].get(side, []), i, r in _labs)
 			i += 3
 		_vestir_teto(root, r, h)
 		_pintar_piso(root, r, h > 5.0)
@@ -954,10 +994,21 @@ func _vestir() -> void:
 		_pintar_piso(root, r, false)
 	for k in _consoles.size():
 		var c: Array = _consoles[k]
-		if c[0] == "console":
-			BaseKit.console(root, c[1], c[2], c[3], k)
-		else:
-			BaseKit.armario(root, c[1], c[2], k)
+		match c[0]:
+			"console":
+				BaseKit.console(root, c[1], c[2], c[3], k)
+			"bancada":
+				BaseKit.bancada(root, c[1], c[2], c[3], k)
+			"estante":
+				BaseKit.estante(root, c[1], c[2], c[3], 3.6, k)
+			"tanque":
+				BaseKit.tanque(root, c[1], c[3], 2.6)
+			"heliponto":
+				BaseKit.heliponto(root, c[1], c[3])
+			"ponte":
+				BaseKit.ponte_rolante(root, Rect2(78, -12, 24, 24), ROOM_H)
+			_:
+				BaseKit.armario(root, c[1], c[2], k)
 
 
 ## Linha da face de dentro de um lado da sala: origem, direção, normal e
@@ -998,7 +1049,7 @@ func _livre(u0: float, u1: float, bloqueios: Array) -> bool:
 	return true
 
 
-func _vestir_parede(root: Node3D, r: Rect2, h: float, side: String, vaos: Array, vidros: Array, seed: int) -> void:
+func _vestir_parede(root: Node3D, r: Rect2, h: float, side: String, vaos: Array, vidros: Array, seed: int, lab: bool = false) -> void:
 	var ld := _lado(r, side)
 	var o: Vector3 = ld[0]
 	var dir: Vector3 = ld[1]
@@ -1076,7 +1127,9 @@ func _vestir_parede(root: Node3D, r: Rect2, h: float, side: String, vaos: Array,
 					if (k + seed) % 3 == 0:
 						BaseKit.tela(root, o, dir, nrm, m, 2.6, minf(w, 2.2), minf(w, 2.2) * 0.56, seed + k)
 			_:
-				if not tem_porta and (k + seed) % 2 == 0:
+				if lab and not tem_porta and (k + seed) % 2 == 1:
+					BaseKit.armario_parede(root, o, dir, nrm, m - w * 0.5, m + w * 0.5, 2.3)
+				elif not tem_porta and (k + seed) % 2 == 0:
 					BaseKit.tela(root, o, dir, nrm, m, 3.0, w * 0.9, w * 0.9 * 0.56, seed + k)
 					if estilo == "A" and topo - 4.6 > 1.0:
 						BaseKit.tela(root, o, dir, nrm, m, 4.7, w * 0.55, w * 0.55 * 0.56, seed + k + 1)
@@ -1092,7 +1145,15 @@ func _vestir_teto(root: Node3D, r: Rect2, h: float) -> void:
 	var alta := h > 5.0
 	var margem := 1.0 if alta else 0.45
 	# Vigas atravessadas a cada ~4 m (só nas salas altas).
-	if alta:
+	if alta and estilo == "B":
+		var nv := maxi(1, int(round(comp / 4.0)))
+		for k in range(1, nv):
+			var c := (r.position.x if ao_x else r.position.y) + comp * k / nv
+			if ao_x:
+				BaseKit.trelica(root, Vector3(c, 0, r.position.y), Vector3(c, 0, r.end.y), h, 1.0)
+			else:
+				BaseKit.trelica(root, Vector3(r.position.x, 0, c), Vector3(r.end.x, 0, c), h, 1.0)
+	elif alta:
 		var nv := maxi(1, int(round(comp / 4.0)))
 		for k in range(1, nv):
 			var c := (r.position.x if ao_x else r.position.y) + comp * k / nv
@@ -1117,10 +1178,11 @@ func _vestir_teto(root: Node3D, r: Rect2, h: float) -> void:
 	# Duto ao longo de uma das paredes compridas.
 	if alta:
 		var off := 1.9
+		var dy := 1.6 if estilo == "B" else 1.0
 		if ao_x:
-			BaseKit.duto(root, Vector3(r.position.x + 1.2, h - 1.0, r.position.y + off), Vector3(r.end.x - 1.2, h - 1.0, r.position.y + off), 0.35, h - 0.45)
+			BaseKit.duto(root, Vector3(r.position.x + 1.2, h - dy, r.position.y + off), Vector3(r.end.x - 1.2, h - dy, r.position.y + off), 0.35, h - 0.45)
 		else:
-			BaseKit.duto(root, Vector3(r.position.x + off, h - 1.0, r.position.y + 1.2), Vector3(r.position.x + off, h - 1.0, r.end.y - 1.2), 0.35, h - 0.45)
+			BaseKit.duto(root, Vector3(r.position.x + off, h - dy, r.position.y + 1.2), Vector3(r.position.x + off, h - dy, r.end.y - 1.2), 0.35, h - 0.45)
 
 
 ## Pintura do piso: faixa laranja a 1 m das paredes compridas e tracejado

@@ -47,9 +47,19 @@ func setup(size: Vector3, color: Color) -> void:
 		var m := BoxMesh.new()
 		m.size = size
 		_mesh.mesh = m
-		_mesh.material_override = _mat
+		_mesh.material_override = BaseKit.mat("porta")
 		_mesh.position.y = size.y * 0.5
 		add_child(_mesh)
+		# Porta de serviço no visual da base: chapa escura com faixas de
+		# aviso e frisos (desce para dentro do chão quando abre).
+		var lado := 0 if size.x >= size.z else 2
+		for sx: float in [-1.0, 1.0]:
+			var fr := Vector3.ZERO
+			fr[2 - lado] = sx * (size[2 - lado] * 0.5 + 0.01)
+			var faixa := Look.piece(_mesh, Look.box(Vector3(size.x, 0.25, 0.02) if lado == 0 else Vector3(0.02, 0.25, size.z)), BaseKit.mat("aviso"), fr + Vector3(0, -0.4, 0))
+			faixa.scale = Vector3(0.9, 1, 1) if lado == 0 else Vector3(1, 1, 0.9)
+			for k in 3:
+				Look.piece(_mesh, Look.box(Vector3(size.x * 0.7, 0.04, 0.02) if lado == 0 else Vector3(0.02, 0.04, size.z * 0.7)), BaseKit.mat("peca_escura"), fr + Vector3(0, 0.3 + k * 0.3, 0))
 	if blast_door:
 		add_to_group("blast_doors")
 		_label = Label3D.new()
