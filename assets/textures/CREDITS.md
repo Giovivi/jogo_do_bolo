@@ -4,16 +4,12 @@ Todas as texturas desta pasta vêm do **ambientCG** (https://ambientcg.com) e s�
 
 Licença: https://docs.ambientcg.com/license/ · https://creativecommons.org/publicdomain/zero/1.0/
 
-Cada pasta tem só a cor (`_color.jpg`) e o normal no padrão OpenGL (`_normal.jpg`) da versão 1K-JPG, regravados em JPG qualidade 85. Baixadas em 23/11/2026.
+Cada pasta tem só a cor (`_color.jpg`) e o normal no padrão OpenGL (`_normal.jpg`) da versão 1K-JPG, regravados em JPG qualidade 85. No Godot são importados com compressão com perda (WebP, qualidade 90) para o .exe não inchar. Baixadas em 23/11/2026.
 
 | Pasta | Nome no ambientCG | Fonte | Onde é usada |
 |---|---|---|---|
-| `Bricks097/` | Bricks 097 | https://ambientcg.com/a/Bricks097 | Hub: tijolo aparente do prédio e da estrutura |
-| `RoofingTiles014B/` | Roofing Tiles 014 B | https://ambientcg.com/a/RoofingTiles014B | Hub: telhado de telha de barro |
-| `Ground088/` | Ground 088 | https://ambientcg.com/a/Ground088 | Hub: pátio de terra batida arenosa |
 | `Ground109/` | Ground 109 | https://ambientcg.com/a/Ground109 | Hub: campo e mata em volta (terra seca com capim ralo) |
 | `PaintedPlaster016/` | Painted Plaster 016 | https://ambientcg.com/a/PaintedPlaster016 | Hub: paredes internas (reboco descascado mostrando o tijolo) |
-| `Tiles139/` | Tiles 139 | https://ambientcg.com/a/Tiles139 | Hub: piso do saguão |
 | `Tiles107/` | Tiles 107 | https://ambientcg.com/a/Tiles107 | Hub: piso do laboratório |
 | `WoodFloor043/` | Wood Floor 043 | https://ambientcg.com/a/WoodFloor043 | Hub: taco da sala dos oficiais |
 | `WoodFloor051/` | Wood Floor 051 | https://ambientcg.com/a/WoodFloor051 | Hub: piso do treino (ginásio) |
