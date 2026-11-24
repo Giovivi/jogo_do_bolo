@@ -53,10 +53,6 @@ static func mat(key: String) -> Material:
 	match key:
 		"parede":
 			m = metal("MetalPlates005", 3.0, Color(0.5, 0.53, 0.58), 0.55, 0.5)
-		"parede_hex":
-			m = metal("Tiles072", 1.6, Color(0.75, 0.8, 0.88), 0.4, 0.45)
-		"parede_diag":
-			m = metal("MetalPlates006", 2.4, Color(0.62, 0.65, 0.7), 0.55, 0.45)
 		"teto":
 			m = metal("MetalPlates004", 2.0, Color(0.3, 0.32, 0.36), 0.5, 0.6)
 		"piso":
@@ -259,15 +255,6 @@ static func tela(parent: Node3D, o: Vector3, dir: Vector3, nrm: Vector3, u: floa
 	q.size = Vector2(w, h)
 	var tela_mi := Look.piece(parent, q, tela_mat(i), c + nrm * 0.105)
 	tela_mi.look_at_from_position(c + nrm * 0.105, c - nrm, Vector3.UP)
-
-
-## Painel recuado de hexágonos com moldura de LED.
-static func painel_hex(parent: Node3D, o: Vector3, dir: Vector3, nrm: Vector3, u0: float, u1: float, y0: float, y1: float) -> void:
-	var lo := ponto(o, dir, nrm, u0, 0.0, y0)
-	var hi := ponto(o, dir, nrm, u1, 0.05, y1)
-	Obra.bloco(parent, lo, hi, mat("parede_hex"), false)
-	for e in [[u0, u1, y0 - 0.04, y0], [u0, u1, y1, y1 + 0.04], [u0 - 0.04, u0, y0 - 0.04, y1 + 0.04], [u1, u1 + 0.04, y0 - 0.04, y1 + 0.04]]:
-		peca(parent, _min3(ponto(o, dir, nrm, e[0], 0, e[2]), ponto(o, dir, nrm, e[1], 0.03, e[3])), _max3(ponto(o, dir, nrm, e[0], 0, e[2]), ponto(o, dir, nrm, e[1], 0.03, e[3])), mat("led_fraco"))
 
 
 ## Console de controle (serve de cobertura): base, tampo inclinado com tela

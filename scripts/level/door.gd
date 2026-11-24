@@ -107,6 +107,8 @@ func _build_blindada() -> void:
 	# Folha que será cortada: gira em volta da quina de baixo do lado de lá.
 	_folha = Node3D.new()
 	_folha.name = "Folha"
+	# A colisão é a da porta inteira (some quando ela é cortada).
+	_folha.set_meta("so_desenho", true)
 	_folha.position = Vector3(-tf * 0.5, 0, 0)
 	add_child(_folha)
 	var fw := w - BORDA
