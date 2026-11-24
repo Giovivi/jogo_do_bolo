@@ -1,9 +1,11 @@
 class_name PostoVigia
 extends Node3D
 ## Fase-piloto "Posto Vigia-01" em greybox, montada por código.
-## Grade de 2 m, paredes de 3 m. Coordenadas: x = leste, z = sul (metros).
+## Grade de 2 m. Coordenadas: x = leste, z = sul (metros).
+## Paredes do chão ao teto e tetos em tudo (regras de paredes do hub,
+## docs/regras-paredes.md): feita para a câmera atrás do herói.
 ##
-## Planta em anel (a câmera olha para o norte, de baixo para cima na tela):
+## Planta em anel:
 ## Ida (linha de baixo):  1. Entrada -> 2. Triagem -> 3. Celas -> 4. Hangar
 ## Volta (linha de cima): porta de serviço -> Depósito -> Cofre -> 5. Saída
 ## A volta fica ao norte da ida, nunca entre a câmera e o herói.
@@ -11,10 +13,14 @@ extends Node3D
 signal feixe_rescued
 signal run_completed
 
-const WALL_H := 3.0
 const WALL_T := 0.5
-const FADE_RADIUS := 6.0
-const GLASS_VISUAL_H := 1.0
+## Pé-direito padrão das salas, dos corredores e altura das portas (m).
+const ROOM_H := 4.5
+const CORR_H := 3.5
+const DOOR_H := 3.0
+## Espessura das lajes do teto.
+const LAJE_T := 0.3
+const LUZ_FASE := Color(0.85, 0.92, 1.0)
 ## Segundos de aviso antes de cada inimigo da onda da cela entrar.
 const WAVE_WARNING := 1.0
 
@@ -29,13 +35,10 @@ var player_spawn := Vector3(-4, 0, 4)
 var feixe_cell_position := Vector3(60, 0, -7)
 
 var rng := RandomNumberGenerator.new()
-var _walls: Array[Dictionary] = []
 ## Áreas de chão andável (x0, z0, largura, profundidade).
 var _floor_rects: Array[Rect2] = []
-## Áreas que ficam abertas sem ser chão (vão entre os vidros da triagem e do cofre).
-var _open_rects: Array[Rect2] = []
 var _hints: Array[Dictionary] = []
-var _cage_front: StaticBody3D
+var _cage_front: Node3D
 var _service_door: Door
 var _switch_on: bool = false
 var _blast_open: bool = false
@@ -44,10 +47,11 @@ var _exit_rect := Rect2(-5, -39, 4, 4)
 var _cell_timer: float = -1.0
 var _cell_events: Array[Dictionary] = []
 var _cell_done: bool = false
-## Corte por sala: grupos de estrutura (máscara, malha alta, malha cortada).
-var _cut_groups: Array[Dictionary] = []
-var _cut_zones: Array[Rect2] = []
-var _cut_room: int = -2
+## Paredes registradas (erguidas no fim), tetos, batentes e materiais.
+var _muros: Array[Dictionary] = []
+var _tetos: Array = []
+var _batentes: Array = []
+var _mats: Dictionary = {}
 ## Textura do chão da sala em construção: [id, metros por repetição, tinta].
 ## Fotos do ambientCG (CC0), ver assets/textures/CREDITS.md.
 var _floor_tex: Array = ["Concrete044D", 2.5, Color(0.8, 0.8, 0.82)]
@@ -107,10 +111,15 @@ func build() -> void:
 	_build_celas()
 	_build_hangar()
 	_build_volta()
-	_build_structure()
+	_erguer_muros()
+	# Câmera de cima (opção antiga): a fase fica sem teto, como maquete.
+	if Game.rules.camera_behind:
+		_build_tetos()
 	# Chão com buracos de verdade nos vãos.
 	_build_floor_collision()
 	Game.chests_total = get_tree().get_nodes_in_group("chests").size()
+
+
 
 
 # ================================================================ áreas
@@ -118,9 +127,10 @@ func build() -> void:
 func _build_entrada() -> void:
 	var c := Color(0.42, 0.44, 0.47)
 	_room(-8, -8, 8, 8, c, {"E": [[0.0, 4.0]]})
-	# Saliência com baú atrás de um vão de 2 m (ensina o pulo).
-	_pit(-8, -5, -1, -3)
-	_wall(-1.25, -8, -0.75, -3, WALL_H)
+	# Saliência com baú atrás de um vão de 2 m (ensina o pulo). A mureta
+	# que separa a saliência vai do chão ao teto.
+	_pit(-8, -5, -1.25, -3)
+	_muro(-1.25, -8, -0.75, -3, ROOM_H)
 	_chest(Vector3(-4.5, 0, -6.5))
 	_label("1. Entrada", Vector3(0, 0, 7))
 	# 4 soldados em 2 grupos.
@@ -139,8 +149,10 @@ func _build_entrada() -> void:
 func _build_triagem() -> void:
 	var c := Color(0.4, 0.43, 0.5)
 	_floor_tex = ["Tiles140", 2.0, Color(1.1, 1.12, 1.18)]
-	# Fundo: porta da secreta (x 23) no mezanino e vidro que mostra o cofre (x 30).
-	_room(20, -10, 40, 10, c, {"W": [[0.0, 4.0]], "E": [[0.0, 4.0]], "N": [[23.0, 4.0]]}, {"N": [[30.0, 6.0]]})
+	# Fundo: porta da secreta (x 23) no mezanino e vidro que mostra o cofre
+	# (x 30). A porta da secreta é mais alta: ela nasce no mezanino de 1 m.
+	_room(20, -10, 40, 10, c, {"W": [[0.0, 4.0]], "E": [[0.0, 4.0]], "N": [[23.0, 4.0, 4.0]]},
+			{"N": [[30.0, 6.0, 1.6, 3.6]]}, [], 5.5)
 	# Níveis: mezanino de 1 m no fundo e plataforma de 2 m no canto
 	# nordeste (sobe pelo mezanino, degrau de 1 m), com baú no alto.
 	_platform(20, -10, 34, -6, 1.0)
@@ -162,12 +174,14 @@ func _build_triagem() -> void:
 func _build_secreta() -> void:
 	var c := Color(0.35, 0.33, 0.42)
 	_floor_tex = ["MetalPlates014", 1.6, Color(0.7, 0.72, 0.78)]
-	# Corredor norte com vão de 4 m.
+	# Corredor norte com vão de 4 m (pé-direito de 4 m, igual à porta).
 	_floor(21, -18, 25, -10, c)
-	_wall(21 - WALL_T, -18, 21, -10, WALL_H)
-	_wall(25, -18, 25 + WALL_T, -10, WALL_H)
+	_muro(21 - WALL_T, -17.5, 21, -10.5, 4.0 + LAJE_T)
+	_muro(25, -17.5, 25 + WALL_T, -10.5, 4.0 + LAJE_T)
+	_teto(Rect2(21, -17.5, 4, 7), 4.0)
+	_luminaria(Vector3(23, 4.0, -14))
 	_pit(21, -15, 25, -11)
-	_room(13, -28, 25, -18, c, {"S": [[23.0, 4.0]]})
+	_room(13, -28, 25, -18, c, {"S": [[23.0, 4.0, 4.0]]}, {}, [], 4.0)
 	_chest(Vector3(17, 0, -24))
 	_label("sala secreta", Vector3(19, 0, -20))
 	_hint(Rect2(21, -11, 4, 1.5), "Vão de 4 m: só o Fênix passa. Pule e segure Espaço para planar.")
@@ -178,17 +192,18 @@ func _build_celas() -> void:
 	_floor_tex = ["Tiles140", 2.0, Color(1.05, 1.1, 1.1)]
 	_room(50, -10, 70, 10, c, {"W": [[0.0, 4.0]], "E": [[0.0, 4.0]]})
 	_label("3. Celas", Vector3(60, 0, 8.5))
-	# Cela do Feixe (a grade da frente some quando destrava).
+	# Cela do Feixe: laterais de chapa até o teto e frente de campo de
+	# força, também até o teto (some quando destrava).
 	for cx in [57.5, 62.5]:
-		var bar := _wall(cx - 0.25, -10, cx + 0.25, -4.5, WALL_H, Color(0.75, 0.8, 0.9))
-		Look.texture_std(bar.get_child(1).material_override, "MetalPlates014", 1.6, Color(0.75, 0.8, 0.9))
+		_muro(cx - 0.25, -10, cx + 0.25, -4.25, ROOM_H, [], [], 0.0, "chapa")
 	# Feixe já resgatado em outra ida: a cela fica aberta e vazia, sem
 	# console nem defesa.
 	var already_rescued: bool = Game.progress.get("feixe", false)
 	if already_rescued:
 		_cell_done = true
 	else:
-		_cage_front = _wall(57.25, -4.75, 62.75, -4.25, WALL_H, Color(0.5, 0.75, 0.95, 0.45))
+		_cage_front = Obra.bloco(self, Vector3(57.75, 0, -4.75), Vector3(62.25, ROOM_H, -4.25), _mat("campo"))
+		_cage_front.name = "FrenteDaCela"
 		var console := CellConsole.new()
 		console.position = Vector3(60, 0, -2)
 		add_child(console)
@@ -204,7 +219,9 @@ func _build_celas() -> void:
 func _build_hangar() -> void:
 	var c := Color(0.36, 0.38, 0.44)
 	_floor_tex = ["Concrete046", 3.0, Color(0.58, 0.58, 0.6)]
-	_room(78, -12, 102, 12, c, {"W": [[0.0, 4.0]], "N": [[99.5, 4.0]]})
+	# Pé-direito de 7 m: a passarela tem 3 m e o interruptor fica em cima.
+	# A porta de serviço (norte) já tem modelo próprio: sem batente.
+	_room(78, -12, 102, 12, c, {"W": [[0.0, 4.0]], "N": [[99.5, 4.0, DOOR_H, false]]}, {}, [], 7.0)
 	_label("4. Hangar", Vector3(90, 0, 10.5))
 	# Passarela alta (inalcançável a pé) com o interruptor.
 	var walkway := _box_body(Vector3(88, 1.5, -10.5), Vector3(16, 3, 3), Color(0.5, 0.52, 0.58), Game.LAYER_WALKWAY)
@@ -217,7 +234,7 @@ func _build_hangar() -> void:
 	service.name = "PortaServico"
 	service.position = Vector3(99.5, 0, -12.25)
 	add_child(service)
-	service.setup(Vector3(4, WALL_H, 0.6), Color(0.75, 0.6, 0.2))
+	service.setup(Vector3(4, DOOR_H, 0.6), Color(0.75, 0.6, 0.2))
 	Look.texture_std(service._mat, "PaintedMetal016", 1.5)
 	_service_door = service
 	sw.triggered.connect(_on_switch_triggered)
@@ -249,7 +266,7 @@ func _build_volta() -> void:
 	var c := Color(0.34, 0.36, 0.38)
 	_floor_tex = CORRIDOR_TEX
 	# Serviço: sai do fundo do hangar e sobe (6 m de largura).
-	_room(96, -30, 102, -12, c, {"W": [[-25.0, 4.0]]}, {}, ["S"])
+	_room(96, -30, 102, -12, c, {"W": [[-25.0, 4.0]]}, {}, ["S"], 4.0)
 	_corridor_x(70, 96, -25.0, c)
 	# Depósito: sala de luta da volta, com caixas de cobertura.
 	_floor_tex = ["Concrete046", 3.0, Color(0.62, 0.6, 0.56)]
@@ -265,28 +282,35 @@ func _build_volta() -> void:
 	_corridor_x(36, 52, -19.0, c)
 	# Cofre blindado no fundo da triagem, visto pelo vidro dela.
 	var vc := Color(0.45, 0.42, 0.33)
-	# Fosso entre o vidro da triagem e o do cofre: aberto para o cofre
-	# aparecer, mas não é chão andável.
-	_open_rects.append(Rect2(27, -14, 6, 4))
-	_box_visual(Vector3(30, -0.6, -12), Vector3(6, 0.2, 4), Color(0.12, 0.13, 0.15))
+	# Fosso entre o vidro da triagem e o do cofre: fechado dos lados e por
+	# cima, com o fundo 60 cm abaixo do chão (não é chão andável).
+	_box_visual(Vector3(30, -0.6, -12), Vector3(6, 0.2, 3), Color(0.12, 0.13, 0.15))
+	_muro(26.5, -13.5, 27, -10.5, 4.0 + LAJE_T, [], [], -0.7)
+	_muro(33, -13.5, 33.5, -10.5, 4.0 + LAJE_T, [], [], -0.7)
+	_teto(Rect2(27, -13.5, 6, 3), 4.0)
 	_floor_tex = ["DiamondPlate008A", 1.5, Color(0.85, 0.82, 0.72)]
-	_room(26, -24, 36, -14, vc, {"E": [[-19.0, 4.0]], "N": [[30.0, 4.0]]}, {"S": [[30.0, 6.0]]})
+	# A porta blindada (leste) já tem modelo próprio: sem batente.
+	_room(26, -24, 36, -14, vc, {"E": [[-19.0, 4.0, DOOR_H, false]], "N": [[30.0, 4.0]]},
+			{"S": [[30.0, 6.0, 0.9, 2.9]]}, [], 4.0)
+	# As paredes do fosso descem até o fundo dele.
 	_label("cofre", Vector3(31, 0, -15.5))
 	var blast := Door.new()
 	blast.name = "PortaBlindada"
 	blast.blast_door = true
 	blast.position = Vector3(36, 0, -19)
 	add_child(blast)
-	blast.setup(Vector3(0.8, WALL_H, 4), Color(0.55, 0.6, 0.65))
+	blast.setup(Vector3(0.8, DOOR_H, 4), Color(0.55, 0.6, 0.65))
 	blast.opened_door.connect(_on_blast_door_opened)
 	_chest(Vector3(32, 0, -22), true)
 	_hint(Rect2(37, -21, 8, 4), "Porta blindada: com o Feixe, segure Q para cortar com o laser.")
 	# Saída: sobe pelo norte do cofre e volta para cima da entrada.
 	_floor_tex = CORRIDOR_TEX
 	_floor(28, -32, 32, -24, c)
-	_wall(28 - WALL_T, -31.5, 28, -24.5, WALL_H)
-	_wall(32, -31.5, 32 + WALL_T, -24.5, WALL_H)
-	_room(6, -36, 32, -32, c, {"S": [[30.0, 4.0]]}, {}, ["W"])
+	_muro(28 - WALL_T, -31.5, 28, -24.5, CORR_H + LAJE_T)
+	_muro(32, -31.5, 32 + WALL_T, -24.5, CORR_H + LAJE_T)
+	_teto(Rect2(28, -31.5, 4, 7), CORR_H)
+	_luminaria(Vector3(30, CORR_H, -28))
+	_room(6, -36, 32, -32, c, {"S": [[30.0, 4.0]]}, {}, ["W"], CORR_H)
 	_floor_tex = ["Concrete044D", 2.5, Color(0.72, 0.85, 0.78)]
 	_room(-6, -40, 6, -26, Color(0.3, 0.42, 0.36), {"E": [[-34.0, 4.0]]})
 	_label("5. Saída", Vector3(0, 0, -27.5))
@@ -294,6 +318,367 @@ func _build_volta() -> void:
 	var pad := _box_visual(Vector3(_exit_rect.get_center().x, 0.06, _exit_rect.get_center().y), Vector3(_exit_rect.size.x, 0.1, _exit_rect.size.y), Color(0.3, 0.95, 0.6))
 	pad.name = "SaidaPad"
 	_label("SAÍDA", Vector3(_exit_rect.get_center().x, 0, _exit_rect.get_center().y))
+	_build_porta_saida()
+
+
+## Elevador de saída: pórtico de metal na frente do piso verde, com a placa
+## acesa (a saída tem modelo, não só o ponto no chão).
+func _build_porta_saida() -> void:
+	var r := _exit_rect
+	var z0 := r.end.y
+	var x0 := r.position.x - 0.2
+	var x1 := r.end.x + 0.2
+	var root := Node3D.new()
+	root.name = "ElevadorSaida"
+	add_child(root)
+	Obra.bloco(root, Vector3(x0, 0, z0), Vector3(x0 + 0.25, DOOR_H, z0 + 0.25), _mat("batente"))
+	Obra.bloco(root, Vector3(x1 - 0.25, 0, z0), Vector3(x1, DOOR_H, z0 + 0.25), _mat("batente"))
+	Obra.bloco(root, Vector3(x0, DOOR_H, z0), Vector3(x1, DOOR_H + 0.35, z0 + 0.25), _mat("batente"))
+	Obra.bloco(root, Vector3(r.get_center().x - 0.8, DOOR_H + 0.08, z0 + 0.25), Vector3(r.get_center().x + 0.8, DOOR_H + 0.27, z0 + 0.3), _mat("placa"), false)
+	var light := OmniLight3D.new()
+	light.light_color = Color(0.4, 1.0, 0.6)
+	light.light_energy = 1.2
+	light.omni_range = 5.0
+	light.position = Vector3(r.get_center().x, 2.2, r.get_center().y)
+	root.add_child(light)
+
+
+# ================================================================ paredes e tetos
+## Regras de paredes (docs/regras-paredes.md), as mesmas do hub:
+##   1. Uma parede = uma peça: desenho e colisão do mesmo tamanho (Obra).
+##   2. Portas e janelas são vãos recortados na peça; nada empilhado.
+##   3. Tudo o que é visível e alto colide (a câmera desvia).
+##   4. Nada some nem aparece conforme a posição do herói; teto em tudo.
+##   5. Toda porta e saída tem modelo (batente, porta ou o elevador).
+
+## Material das peças, criado uma vez por fase.
+func _mat(key: String) -> Material:
+	if _mats.has(key):
+		return _mats[key]
+	var m := StandardMaterial3D.new()
+	match key:
+		"parede":
+			Look.texture_std(m, WALL_TEX[0], WALL_TEX[1], WALL_TEX[2])
+		"teto":
+			Look.texture_std(m, "Concrete032", 3.0, Color(0.55, 0.57, 0.6))
+		"chapa":
+			Look.texture_std(m, "MetalPlates014", 1.6, Color(0.75, 0.8, 0.9))
+		"batente":
+			Look.texture_std(m, "Metal027", 2.0, Color(0.55, 0.57, 0.6))
+		"campo":
+			m.albedo_color = Color(0.5, 0.75, 0.95, 0.45)
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.emission_enabled = true
+			m.emission = Color(0.3, 0.6, 1.0)
+			m.emission_energy_multiplier = 0.4
+		"vidro":
+			m.albedo_color = Color(0.55, 0.8, 1.0, 0.28)
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.roughness = 0.05
+			m.metallic = 0.3
+		"luz":
+			m.albedo_color = Color(0.9, 0.95, 1.0)
+			m.emission_enabled = true
+			m.emission = LUZ_FASE
+			m.emission_energy_multiplier = 2.5
+		"placa":
+			m.albedo_color = Color(0.3, 0.95, 0.6)
+			m.emission_enabled = true
+			m.emission = Color(0.3, 0.95, 0.6)
+			m.emission_energy_multiplier = 2.0
+	_mats[key] = m
+	return m
+
+
+## Registra uma parede reta (caixa x0..x1, z0..z1, de y0 a y1). Ela só é
+## construída no fim (_erguer_muros), depois de resolver os encontros.
+## vaos e vidros: [[u0, u1, v0, v1], ...] com u ao longo da parede.
+func _muro(x0: float, z0: float, x1: float, z1: float, y1: float, vaos: Array = [], vidros: Array = [], y0: float = 0.0, mat: String = "parede") -> void:
+	var axis := "x" if x1 - x0 >= z1 - z0 else "z"
+	_muros.append({
+		"rect": Rect2(x0, z0, x1 - x0, z1 - z0),
+		"axis": axis,
+		"y0": y0,
+		"y1": y1,
+		"vaos": vaos,
+		"vidros": vidros,
+		"mat": mat,
+	})
+
+
+func _teto(r: Rect2, y: float) -> void:
+	_tetos.append([r, y])
+
+
+## Sala retangular com paredes do chão ao teto e teto.
+## openings: {"N"|"S"|"W"|"E": [[centro, largura, altura = DOOR_H, batente = true], ...]}
+## glass: {lado: [[centro, largura, de = 1.0, até = 2.6], ...]} (janela com vidro)
+## skip: lados sem parede (a sala vizinha já fecha esse lado).
+func _room(x0: float, z0: float, x1: float, z1: float, color: Color, openings: Dictionary = {}, glass: Dictionary = {}, skip: Array = [], h: float = ROOM_H) -> void:
+	_floor(x0, z0, x1, z1, color)
+	var t := WALL_T
+	# Do lado sem parede, o teto para na parede da sala vizinha.
+	var tx0 := x0 + (t if "W" in skip else 0.0)
+	var tx1 := x1 - (t if "E" in skip else 0.0)
+	var tz0 := z0 + (t if "N" in skip else 0.0)
+	var tz1 := z1 - (t if "S" in skip else 0.0)
+	_teto(Rect2(tx0, tz0, tx1 - tx0, tz1 - tz0), h)
+	var top := h + LAJE_T
+	for side in ["N", "S", "W", "E"]:
+		if side in skip:
+			continue
+		var vaos: Array = []
+		for o in openings.get(side, []):
+			var c: float = o[0]
+			var w: float = o[1]
+			var oh: float = o[2] if o.size() > 2 else DOOR_H
+			vaos.append([c - w * 0.5, c + w * 0.5, 0.0, oh])
+			if o.size() <= 3 or o[3]:
+				_batentes.append({"side": side, "u0": c - w * 0.5, "u1": c + w * 0.5, "h": oh,
+						"fixo": z0 - t if side == "N" else (z1 if side == "S" else (x0 - t if side == "W" else x1))})
+		var vidros: Array = []
+		for g in glass.get(side, []):
+			var c: float = g[0]
+			var w: float = g[1]
+			var v0: float = g[2] if g.size() > 2 else 1.0
+			var v1: float = g[3] if g.size() > 3 else 2.6
+			vaos.append([c - w * 0.5, c + w * 0.5, v0, v1])
+			vidros.append([c - w * 0.5, c + w * 0.5, v0, v1])
+		# As paredes norte e sul fecham os cantos (menos onde a vizinha fecha).
+		var a := x0 - (0.0 if "W" in skip else t)
+		var b := x1 + (0.0 if "E" in skip else t)
+		match side:
+			"N":
+				_muro(a, z0 - t, b, z0, top, vaos, vidros)
+			"S":
+				_muro(a, z1, b, z1 + t, top, vaos, vidros)
+			"W":
+				_muro(x0 - t, z0, x0, z1, top, vaos, vidros)
+			_:
+				_muro(x1, z0, x1 + t, z1, top, vaos, vidros)
+	# Luminárias no teto, uma a cada ~7 m.
+	var nx := maxi(1, int(round((x1 - x0) / 7.0)))
+	var nz := maxi(1, int(round((z1 - z0) / 7.0)))
+	for i in nx:
+		for j in nz:
+			_luminaria(Vector3(x0 + (x1 - x0) * (i + 0.5) / nx, h, z0 + (z1 - z0) * (j + 0.5) / nz))
+
+
+## Corredor leste-oeste de 4 m de largura centrado em z, entre duas salas
+## (as paredes e o teto param na face de fora das paredes delas).
+func _corridor_x(x0: float, x1: float, z: float, color: Color) -> void:
+	var room_tex := _floor_tex
+	_floor_tex = CORRIDOR_TEX
+	_floor(x0, z - 2, x1, z + 2, color)
+	_floor_tex = room_tex
+	var t := WALL_T
+	_muro(x0 + t, z - 2 - t, x1 - t, z - 2, CORR_H + LAJE_T)
+	_muro(x0 + t, z + 2, x1 - t, z + 2 + t, CORR_H + LAJE_T)
+	_teto(Rect2(x0 + t, z - 2, x1 - x0 - 2.0 * t, 4.0), CORR_H)
+	var n := maxi(1, int(round((x1 - x0) / 7.0)))
+	for i in n:
+		_luminaria(Vector3(x0 + (x1 - x0) * (i + 0.5) / n, CORR_H, z))
+
+
+## Luminária presa no teto (y = altura do teto) com a luz dela. Sem teto
+## (câmera de cima) fica só a luz.
+func _luminaria(p: Vector3) -> void:
+	if Game.rules.camera_behind:
+		Obra.bloco(self, Vector3(p.x - 0.6, p.y - 0.08, p.z - 0.15), Vector3(p.x + 0.6, p.y, p.z + 0.15), _mat("luz"), false)
+	var light := OmniLight3D.new()
+	light.light_color = LUZ_FASE
+	light.light_energy = 1.1
+	light.omni_range = 8.0
+	light.omni_attenuation = 1.2
+	light.position = p - Vector3(0, 0.4, 0)
+	add_child(light)
+
+
+## Constrói as paredes registradas. Onde duas se encontram, a mais baixa
+## (ou a mais nova, se tiverem a mesma altura) perde o trecho do encontro:
+## assim nenhuma peça fica dentro da outra (sem faces no mesmo plano).
+func _erguer_muros() -> void:
+	var root := Node3D.new()
+	root.name = "Paredes"
+	add_child(root)
+	var cortes: Array = []
+	for i in _muros.size():
+		cortes.append([])
+	for i in _muros.size():
+		for j in range(i + 1, _muros.size()):
+			var A: Dictionary = _muros[i]
+			var B: Dictionary = _muros[j]
+			var ov := (A["rect"] as Rect2).intersection(B["rect"])
+			if ov.size.x <= 0.001 or ov.size.y <= 0.001:
+				continue
+			var perde := j if float(B["y1"]) <= float(A["y1"]) else i
+			cortes[perde].append(ov)
+	for i in _muros.size():
+		var w: Dictionary = _muros[i]
+		var r: Rect2 = w["rect"]
+		var along_x: bool = w["axis"] == "x"
+		var a0 := r.position.x if along_x else r.position.y
+		var a1 := r.end.x if along_x else r.end.y
+		var f0 := r.position.y if along_x else r.position.x
+		var f1 := r.end.y if along_x else r.end.x
+		# Trechos que sobram depois dos cortes (ao longo da parede).
+		var trechos: Array = [[a0, a1]]
+		for ov in cortes[i]:
+			var o: Rect2 = ov
+			var c0 := o.position.x if along_x else o.position.y
+			var c1 := o.end.x if along_x else o.end.y
+			var novos: Array = []
+			for tr in trechos:
+				if c1 <= tr[0] or c0 >= tr[1]:
+					novos.append(tr)
+					continue
+				if c0 > tr[0]:
+					novos.append([tr[0], c0])
+				if c1 < tr[1]:
+					novos.append([c1, tr[1]])
+			trechos = novos
+		for tr in trechos:
+			if tr[1] - tr[0] < 0.01:
+				continue
+			Obra.parede(root, w["axis"], f0, tr[0], tr[1], w["y0"], w["y1"], [[0.0, f1 - f0, _mat(w["mat"])]], w["vaos"])
+		# Vidro no meio da espessura, do tamanho exato da janela (colide).
+		for g in w["vidros"]:
+			var fm := (f0 + f1) * 0.5
+			if along_x:
+				Obra.bloco(root, Vector3(g[0], g[2], fm - 0.03), Vector3(g[1], g[3], fm + 0.03), _mat("vidro"))
+			else:
+				Obra.bloco(root, Vector3(fm - 0.03, g[2], g[0]), Vector3(fm + 0.03, g[3], g[1]), _mat("vidro"))
+	# Batentes de metal forrando os vãos de porta (saltam 6 cm da parede).
+	for bt in _batentes:
+		var side: String = bt["side"]
+		var f0: float = bt["fixo"]
+		var f1 := f0 + WALL_T
+		var u0: float = bt["u0"]
+		var u1: float = bt["u1"]
+		var hh: float = bt["h"]
+		var k := 0.15
+		var e := 0.06
+		var pecas := [[u0, u0 + k, 0.0, hh - k], [u1 - k, u1, 0.0, hh - k], [u0, u1, hh - k, hh]]
+		for p in pecas:
+			if side == "N" or side == "S":
+				Obra.bloco(root, Vector3(p[0], p[2], f0 - e), Vector3(p[1], p[3], f1 + e), _mat("batente"))
+			else:
+				Obra.bloco(root, Vector3(f0 - e, p[2], p[0]), Vector3(f1 + e, p[3], p[1]), _mat("batente"))
+
+
+## Tetos de concreto com colisão: a câmera chega mais perto quando bate.
+func _build_tetos() -> void:
+	var root := Node3D.new()
+	root.name = "Tetos"
+	add_child(root)
+	for tt in _tetos:
+		var r: Rect2 = tt[0]
+		var y: float = tt[1]
+		Obra.bloco(root, Vector3(r.position.x, y, r.position.y), Vector3(r.end.x, y + LAJE_T, r.end.y), _mat("teto"))
+
+
+# ================================================================ kit de peças
+
+## Bunker fechado: sem sol, só a luz fria das luminárias e um ambiente baixo.
+func _build_lighting() -> void:
+	var env := WorldEnvironment.new()
+	var e := Environment.new()
+	e.background_mode = Environment.BG_COLOR
+	e.background_color = Color(0.03, 0.03, 0.04)
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_color = Color(0.55, 0.58, 0.66)
+	e.ambient_light_energy = 0.55
+	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	e.glow_enabled = true
+	e.glow_intensity = 0.6
+	env.environment = e
+	add_child(env)
+
+
+func _floor(x0: float, z0: float, x1: float, z1: float, color: Color) -> void:
+	_floor_rects.append(Rect2(x0, z0, x1 - x0, z1 - z0))
+	var ground := _box_visual(Vector3((x0 + x1) * 0.5, -0.1, (z0 + z1) * 0.5), Vector3(x1 - x0, 0.2, z1 - z0), color)
+	Look.texture_std(ground.material_override, _floor_tex[0], _floor_tex[1], _floor_tex[2])
+	# Linhas da grade de 2 m, só por dentro do piso (nas emendas entre
+	# pisos não nasce linha dobrada). As de x ficam 2 mm mais altas que as
+	# de z, para os cruzamentos não disputarem o mesmo plano.
+	var grid_color := color.darkened(0.15)
+	var x := floorf(x0 / 2.0) * 2.0 + 2.0
+	while x < x1 - 0.01:
+		_box_visual(Vector3(x, 0.006, (z0 + z1) * 0.5), Vector3(0.04, 0.012, z1 - z0), grid_color)
+		x += 2.0
+	var z := floorf(z0 / 2.0) * 2.0 + 2.0
+	while z < z1 - 0.01:
+		_box_visual(Vector3((x0 + x1) * 0.5, 0.005, z), Vector3(x1 - x0, 0.01, 0.04), grid_color)
+		z += 2.0
+
+
+## Plataforma maciça de altura "h" (em que se sobe pulando), com borda
+## clara no topo para ler a altura com a câmera baixa.
+func _platform(x0: float, z0: float, x1: float, z1: float, h: float) -> StaticBody3D:
+	var col := Color(0.5, 0.53, 0.58) if h <= 1.0 else Color(0.46, 0.49, 0.55)
+	var body := _box_body(Vector3((x0 + x1) * 0.5, h * 0.5, (z0 + z1) * 0.5), Vector3(x1 - x0, h, z1 - z0), col, Game.LAYER_WORLD)
+	body.name = "Plataforma"
+	Look.texture_std(body.get_child(1).material_override, "DiamondPlate008A", 1.5, Color(0.95, 0.97, 1.0) if h <= 1.0 else Color(0.85, 0.88, 0.92))
+	var trim := Color(0.93, 0.8, 0.35)
+	var t := 0.1
+	var y := h + 0.01
+	# Faixa de aviso amarela e preta nas bordas.
+	for strip in [
+		_box_visual(Vector3((x0 + x1) * 0.5, y, z1 - t * 0.5), Vector3(x1 - x0, 0.02, t), trim),
+		_box_visual(Vector3((x0 + x1) * 0.5, y, z0 + t * 0.5), Vector3(x1 - x0, 0.02, t), trim),
+		# As laterais param nas faixas da frente e do fundo (sem sobrepor).
+		_box_visual(Vector3(x0 + t * 0.5, y, (z0 + z1) * 0.5), Vector3(t, 0.02, z1 - z0 - 2.0 * t), trim),
+		_box_visual(Vector3(x1 - t * 0.5, y, (z0 + z1) * 0.5), Vector3(t, 0.02, z1 - z0 - 2.0 * t), trim),
+	]:
+		Look.texture_std(strip.material_override, "PaintedMetal016", 0.8)
+	return body
+
+
+## Colisão do chão feita por faixas de 1 m, sem os vãos: cair num vão é
+## cair de verdade (o herói volta para a última beirada segura).
+func _build_floor_collision() -> void:
+	var body := StaticBody3D.new()
+	body.name = "ChaoColisao"
+	body.collision_layer = Game.LAYER_WORLD
+	body.collision_mask = 0
+	add_child(body)
+	var bounds := Rect2()
+	var first := true
+	for r in _floor_rects:
+		bounds = r if first else bounds.merge(r)
+		first = false
+	var x_min := int(floor(bounds.position.x))
+	var x_max := int(ceil(bounds.end.x))
+	var z_min := int(floor(bounds.position.y))
+	var z_max := int(ceil(bounds.end.y))
+	for z in range(z_min, z_max):
+		var x := x_min
+		while x < x_max:
+			if not _is_solid_floor(x, z):
+				x += 1
+				continue
+			var start := x
+			while x < x_max and _is_solid_floor(x, z):
+				x += 1
+			var shape := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = Vector3(float(x - start), 1.0, 1.0)
+			shape.shape = box
+			shape.position = Vector3((float(start) + float(x)) * 0.5, -0.5, float(z) + 0.5)
+			body.add_child(shape)
+
+
+func _is_solid_floor(x: int, z: int) -> bool:
+	var p := Vector2(float(x) + 0.5, float(z) + 0.5)
+	for g in Game.gaps:
+		if g.has_point(p):
+			return false
+	for r in _floor_rects:
+		if r.has_point(p):
+			return true
+	return false
+
 
 
 # ================================================================ cela e ondas
@@ -387,11 +772,6 @@ func open_cell() -> void:
 	_cell_timer = Game.rules.cell_unlock_time
 	if _cage_front != null:
 		_cage_front.queue_free()
-		var kept: Array[Dictionary] = []
-		for w in _walls:
-			if w["body"] != _cage_front:
-				kept.append(w)
-		_walls = kept
 		_cage_front = null
 	feixe_rescued.emit()
 
@@ -404,8 +784,6 @@ func _physics_process(delta: float) -> void:
 	if party == null or party.controlled_hero == null:
 		return
 	var hero: Hero = party.controlled_hero
-	_update_wall_fade(hero.global_position)
-	_update_cutaway(hero.global_position)
 	_update_hints(hero.global_position)
 	if not Game.run_finished and _exit_rect.has_point(Vector2(hero.global_position.x, hero.global_position.z)):
 		run_completed.emit()
@@ -423,524 +801,6 @@ func _update_hints(pos: Vector3) -> void:
 
 
 ## Paredes entre a câmera e o herói, perto dele, ficam transparentes.
-func _update_wall_fade(hero_pos: Vector3) -> void:
-	if Game.camera == null or not Game.rules.wall_fade:
-		return
-	var to_cam := Game.camera.global_transform.basis.z
-	to_cam.y = 0.0
-	to_cam = to_cam.normalized()
-	var hp := Vector2(hero_pos.x, hero_pos.z)
-	var cam2 := Vector2(to_cam.x, to_cam.z)
-	for w in _walls:
-		var r: Rect2 = w["rect"]
-		var closest := Vector2(clampf(hp.x, r.position.x, r.end.x), clampf(hp.y, r.position.y, r.end.y))
-		var off := closest - hp
-		var fade := off.length() < FADE_RADIUS and off.dot(cam2) > 0.2
-		if fade != w["faded"]:
-			w["faded"] = fade
-			var mat: StandardMaterial3D = w["mat"]
-			var base: Color = w["color"]
-			if fade:
-				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				mat.albedo_color = Color(base.r, base.g, base.b, 0.18)
-			else:
-				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if base.a < 1.0 else BaseMaterial3D.TRANSPARENCY_DISABLED
-				mat.albedo_color = base
-
-
-# ================================================================ estrutura em corte
-
-## Preenche todo o entorno das salas com estrutura maciça, para não haver
-## "buraco" no mapa. Perto do lado da câmera, a estrutura é cortada baixa
-## (como uma maquete em corte); no fundo, sobe até a altura das paredes.
-func _build_structure() -> void:
-	var cell := 1.0
-	var x_min := -30
-	var x_max := 126
-	var z_min := -46
-	var z_max := 52
-	var nx := x_max - x_min
-	var nz := z_max - z_min
-	var open := PackedByteArray()
-	open.resize(nx * nz)
-	for iz in nz:
-		for ix in nx:
-			var p := Vector2(x_min + ix + 0.5, z_min + iz + 0.5)
-			var v := 0
-			for r in _floor_rects:
-				if r.has_point(p):
-					v = 1
-					break
-			if v == 0:
-				for r in _open_rects:
-					if r.has_point(p):
-						v = 2
-						break
-			open[iz * nx + ix] = v
-
-	# Sala de cada célula aberta (máscara de bits das zonas de câmera).
-	# Vãos e corredores fora de qualquer zona contam para as salas a até
-	# 3 m; se não houver nenhuma, para a mais próxima.
-	var zones := _zone_rects()
-	var room_of := PackedInt32Array()
-	room_of.resize(nx * nz)
-	for iz in nz:
-		for ix in nx:
-			if open[iz * nx + ix] == 0:
-				continue
-			var p := Vector2(x_min + ix + 0.5, z_min + iz + 0.5)
-			room_of[iz * nx + ix] = _rooms_at(zones, p)
-
-	# Direção em que a câmera olha, no chão.
-	var yaw := deg_to_rad(Game.rules.camera_yaw_degrees)
-	var view := Vector2(-sin(yaw), -cos(yaw))
-	var pitch := deg_to_rad(maxf(Game.rules.camera_pitch_degrees, 5.0))
-	var back_h := maxf(Game.rules.backdrop_height, WALL_H)
-	var reach := back_h / tan(pitch) + Game.rules.cutaway_margin
-	var side_cut := not (self is Escola)
-
-	# Para cada célula de estrutura: em quais salas ela fica cortada baixa
-	# (as que estão logo atrás dela, vistas da câmera). Fora dessas salas ela
-	# fica alta, para não se ver uma sala de dentro de outra (opção A da
-	# prancha paredes-altas-v1). Máscara 0 = sempre alta. -1 = chão aberto.
-	var mask := PackedInt32Array()
-	mask.resize(nx * nz)
-	for iz in nz:
-		for ix in nx:
-			var idx := iz * nx + ix
-			if open[idx] != 0:
-				mask[idx] = -1
-				continue
-			var c := Vector2(x_min + ix + 0.5, z_min + iz + 0.5)
-			var m := 0
-			var k := 0.5
-			# Câmera atrás do herói: sem corte, paredes inteiras.
-			if Game.rules.camera_behind:
-				k = reach + 1.0
-			while k <= reach:
-				var q := c + view * k
-				var qx := int(floor(q.x)) - x_min
-				var qz := int(floor(q.y)) - z_min
-				if qz >= 0 and qz < nz:
-					if qx >= 0 and qx < nx and open[qz * nx + qx] != 0:
-						m |= room_of[qz * nx + qx]
-					# Na fase, chão aberto até 2 m para o lado também corta: assim
-					# as quinas laterais não tampam o herói quando a câmera segue
-					# a mira para o lado.
-					if side_cut:
-						for lat in [-2, -1, 1, 2]:
-							var lx: int = qx + lat
-							if lx >= 0 and lx < nx and open[qz * nx + lx] != 0:
-								m |= room_of[qz * nx + lx]
-				k += 0.5
-			mask[idx] = m
-
-	# Um grupo de malhas por máscara: versão alta e versão cortada.
-	var low_h := Game.rules.cutaway_height
-	var groups := {}
-	for iz in nz:
-		var ix := 0
-		while ix < nx:
-			var m := mask[iz * nx + ix]
-			if m < 0:
-				ix += 1
-				continue
-			var start := ix
-			while ix < nx and mask[iz * nx + ix] == m:
-				ix += 1
-			if not groups.has(m):
-				groups[m] = {"wall": _surface(), "trim": _surface(), "upper": _surface(), "cap": _surface(),
-						"cut": _surface(), "cut_cap": _surface(), "edge": _surface(), "unused": _surface()}
-			var g: Dictionary = groups[m]
-			var z0 := float(z_min + iz) * cell
-			var z1 := z0 + cell
-			# Parede de 3 m, faixa escura no topo dela e estrutura acima.
-			var x0 := float(x_min + start) * cell
-			var x1 := float(x_min + ix) * cell
-			_add_box(g["wall"], g["unused"], Vector3(x0, 0.0, z0), Vector3(x1, WALL_H - 0.25, z1))
-			_add_box(g["trim"], g["unused"], Vector3(x0, WALL_H - 0.25, z0), Vector3(x1, WALL_H, z1))
-			_add_box(g["upper"], g["cap"], Vector3(x0, WALL_H, z0), Vector3(x1, back_h, z1))
-			if m == 0:
-				continue
-			# Versão cortada: célula a célula, com faixa clara no topo das que
-			# encostam no chão (para ler como parede, não como degrau).
-			for cx in range(start, ix):
-				var a := Vector3(float(x_min + cx), 0.0, z0)
-				var b := Vector3(float(x_min + cx + 1), low_h, z1)
-				var edge := false
-				for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-					var ex: int = cx + d.x
-					var ez: int = iz + d.y
-					if ex >= 0 and ex < nx and ez >= 0 and ez < nz and open[ez * nx + ex] != 0:
-						edge = true
-				_add_box(g["cut"], g["edge"] if edge else g["cut_cap"], a, b)
-
-	var root := Node3D.new()
-	root.name = "Estrutura"
-	add_child(root)
-	_cut_groups.clear()
-	for m in groups:
-		var g: Dictionary = groups[m]
-		var tall := ArrayMesh.new()
-		_commit(g["wall"], tall, Color(0.58, 0.6, 0.64))
-		_commit(g["trim"], tall, Color(0.24, 0.25, 0.28))
-		_commit(g["upper"], tall, Color(0.35, 0.37, 0.4))
-		_commit(g["cap"], tall, Color(0.14, 0.15, 0.17))
-		var mi := MeshInstance3D.new()
-		mi.name = "Alta_%d" % m
-		mi.mesh = tall
-		root.add_child(mi)
-		if m == 0:
-			continue
-		var low := ArrayMesh.new()
-		_commit(g["cut"], low, Color(0.3, 0.31, 0.34))
-		_commit(g["cut_cap"], low, Color(0.22, 0.23, 0.26))
-		_commit_plain(g["edge"], low, Color(0.62, 0.6, 0.52))
-		var lo := MeshInstance3D.new()
-		lo.name = "Cortada_%d" % m
-		lo.mesh = low
-		root.add_child(lo)
-		_cut_groups.append({"mask": m, "tall": mi, "low": lo})
-	_cut_zones = zones
-	_cut_room = -1
-	_update_cutaway(Vector3(player_spawn.x, 0.0, player_spawn.z))
-
-	# As paredes que ficaram dentro da estrutura continuam colidindo,
-	# mas não precisam mais aparecer.
-	var kept: Array[Dictionary] = []
-	for w in _walls:
-		var r: Rect2 = w["rect"]
-		# Na fase, ignora as pontas de 0,5 m que encostam no chão da sala
-		# vizinha: senão a parede inteira escapa do corte e fica com 3 m na
-		# frente da câmera.
-		if side_cut:
-			var hx := 0.5 if r.size.x > r.size.y else 0.0
-			var hz := 0.5 if r.size.y > r.size.x else 0.0
-			r = r.grow_individual(-hx, -hz, -hx, -hz)
-		if _rect_fully_solid(r, open, x_min, z_min, nx, nz):
-			var body: StaticBody3D = w["body"]
-			(body.get_child(1) as MeshInstance3D).visible = false
-		else:
-			kept.append(w)
-	_walls = kept
-
-
-
-## Retângulos das zonas de câmera (as salas), na ordem de _zone_table().
-func _zone_rects() -> Array[Rect2]:
-	var out: Array[Rect2] = []
-	for z in _zone_table():
-		out.append(Rect2(z[0], z[1], z[2] - z[0], z[3] - z[1]))
-	return out
-
-
-## Máscara das salas a que um ponto de chão pertence.
-func _rooms_at(zones: Array[Rect2], p: Vector2) -> int:
-	var m := 0
-	for i in zones.size():
-		if zones[i].has_point(p):
-			m |= 1 << i
-	if m != 0:
-		return m
-	for i in zones.size():
-		if zones[i].grow(3.0).has_point(p):
-			m |= 1 << i
-	if m != 0:
-		return m
-	var best := 0
-	var best_d := INF
-	for i in zones.size():
-		var r := zones[i]
-		var q := Vector2(clampf(p.x, r.position.x, r.end.x), clampf(p.y, r.position.y, r.end.y))
-		var d := q.distance_to(p)
-		if d < best_d:
-			best_d = d
-			best = i
-	return 1 << best
-
-
-## Corta baixa só a estrutura na frente da sala onde o herói está.
-func _update_cutaway(pos: Vector3) -> void:
-	if _cut_groups.is_empty():
-		return
-	var p := Vector2(pos.x, pos.z)
-	var room := -1
-	for i in _cut_zones.size():
-		if _cut_zones[i].grow(-0.5).has_point(p):
-			room = i
-			break
-	if room < 0:
-		if _cut_room >= 0:
-			return
-		var m := _rooms_at(_cut_zones, p)
-		room = 0
-		while (m >> room) & 1 == 0:
-			room += 1
-	if room == _cut_room:
-		return
-	_cut_room = room
-	for g in _cut_groups:
-		var cut: bool = (int(g["mask"]) >> room) & 1 == 1
-		(g["low"] as Node3D).visible = cut
-		(g["tall"] as Node3D).visible = not cut
-
-
-func _rect_fully_solid(r: Rect2, open: PackedByteArray, x_min: int, z_min: int, nx: int, nz: int) -> bool:
-	var ix0 := int(floor(r.position.x + 0.01)) - x_min
-	var ix1 := int(ceil(r.end.x - 0.01)) - x_min
-	var iz0 := int(floor(r.position.y + 0.01)) - z_min
-	var iz1 := int(ceil(r.end.y - 0.01)) - z_min
-	for iz in range(iz0, iz1):
-		for ix in range(ix0, ix1):
-			if ix < 0 or ix >= nx or iz < 0 or iz >= nz:
-				continue
-			if open[iz * nx + ix] != 0:
-				return false
-	return true
-
-
-func _surface() -> SurfaceTool:
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	return st
-
-
-func _commit(st: SurfaceTool, mesh: ArrayMesh, color: Color) -> void:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	# Concreto do bunker nas paredes, metal escuro na faixa do topo.
-	if color.r > 0.5:
-		Look.texture_std(mat, WALL_TEX[0], WALL_TEX[1], WALL_TEX[2])
-	elif color.r > 0.33:
-		Look.texture_std(mat, "Concrete032", 3.0, Color(0.75, 0.77, 0.8))
-	elif color.r > 0.27:
-		Look.texture_std(mat, "Concrete032", 3.0, Color(0.68, 0.7, 0.74))
-	elif color.r > 0.23:
-		Look.texture_std(mat, "Metal027", 2.0, Color(0.8, 0.82, 0.86))
-	st.set_material(mat)
-	st.commit(mesh)
-
-
-
-func _commit_plain(st: SurfaceTool, mesh: ArrayMesh, color: Color) -> void:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.8
-	st.set_material(mat)
-	st.commit(mesh)
-
-
-## Caixa: laterais em "sides", tampa em "top" (sem fundo).
-func _add_box(sides: SurfaceTool, top: SurfaceTool, a: Vector3, b: Vector3) -> void:
-	_quad(top, Vector3(a.x, b.y, a.z), Vector3(b.x, b.y, a.z), Vector3(b.x, b.y, b.z), Vector3(a.x, b.y, b.z), Vector3.UP)
-	_quad(sides, Vector3(a.x, a.y, b.z), Vector3(b.x, a.y, b.z), Vector3(b.x, b.y, b.z), Vector3(a.x, b.y, b.z), Vector3.BACK)
-	_quad(sides, Vector3(b.x, a.y, a.z), Vector3(a.x, a.y, a.z), Vector3(a.x, b.y, a.z), Vector3(b.x, b.y, a.z), Vector3.FORWARD)
-	_quad(sides, Vector3(b.x, a.y, b.z), Vector3(b.x, a.y, a.z), Vector3(b.x, b.y, a.z), Vector3(b.x, b.y, b.z), Vector3.RIGHT)
-	_quad(sides, Vector3(a.x, a.y, a.z), Vector3(a.x, a.y, b.z), Vector3(a.x, b.y, b.z), Vector3(a.x, b.y, a.z), Vector3.LEFT)
-
-
-func _quad(st: SurfaceTool, p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, normal: Vector3) -> void:
-	for v in [p0, p1, p2, p0, p2, p3]:
-		st.set_normal(normal)
-		st.add_vertex(v)
-
-
-# ================================================================ kit de peças
-
-func _build_lighting() -> void:
-	var env := WorldEnvironment.new()
-	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color(0.06, 0.06, 0.08)
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.55, 0.55, 0.6)
-	e.ambient_light_energy = 0.6
-	env.environment = e
-	add_child(env)
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-55, 30, 0)
-	sun.light_energy = 1.0
-	sun.shadow_enabled = true
-	add_child(sun)
-
-
-## Plataforma maciça de altura "h" (em que se sobe pulando), com borda
-## clara no topo para ler a altura com a câmera baixa.
-func _platform(x0: float, z0: float, x1: float, z1: float, h: float) -> StaticBody3D:
-	var col := Color(0.5, 0.53, 0.58) if h <= 1.0 else Color(0.46, 0.49, 0.55)
-	var body := _box_body(Vector3((x0 + x1) * 0.5, h * 0.5, (z0 + z1) * 0.5), Vector3(x1 - x0, h, z1 - z0), col, Game.LAYER_WORLD)
-	body.name = "Plataforma"
-	Look.texture_std(body.get_child(1).material_override, "DiamondPlate008A", 1.5, Color(0.95, 0.97, 1.0) if h <= 1.0 else Color(0.85, 0.88, 0.92))
-	var trim := Color(0.93, 0.8, 0.35)
-	var t := 0.1
-	var y := h + 0.01
-	# Faixa de aviso amarela e preta nas bordas.
-	for strip in [
-		_box_visual(Vector3((x0 + x1) * 0.5, y, z1 - t * 0.5), Vector3(x1 - x0, 0.02, t), trim),
-		_box_visual(Vector3((x0 + x1) * 0.5, y, z0 + t * 0.5), Vector3(x1 - x0, 0.02, t), trim),
-		_box_visual(Vector3(x0 + t * 0.5, y, (z0 + z1) * 0.5), Vector3(t, 0.02, z1 - z0), trim),
-		_box_visual(Vector3(x1 - t * 0.5, y, (z0 + z1) * 0.5), Vector3(t, 0.02, z1 - z0), trim),
-	]:
-		Look.texture_std(strip.material_override, "PaintedMetal016", 0.8)
-	return body
-
-
-## Colisão do chão feita por faixas de 1 m, sem os vãos: cair num vão é
-## cair de verdade (o herói volta para a última beirada segura).
-func _build_floor_collision() -> void:
-	var body := StaticBody3D.new()
-	body.name = "ChaoColisao"
-	body.collision_layer = Game.LAYER_WORLD
-	body.collision_mask = 0
-	add_child(body)
-	var bounds := Rect2()
-	var first := true
-	for r in _floor_rects:
-		bounds = r if first else bounds.merge(r)
-		first = false
-	var x_min := int(floor(bounds.position.x))
-	var x_max := int(ceil(bounds.end.x))
-	var z_min := int(floor(bounds.position.y))
-	var z_max := int(ceil(bounds.end.y))
-	for z in range(z_min, z_max):
-		var x := x_min
-		while x < x_max:
-			if not _is_solid_floor(x, z):
-				x += 1
-				continue
-			var start := x
-			while x < x_max and _is_solid_floor(x, z):
-				x += 1
-			var shape := CollisionShape3D.new()
-			var box := BoxShape3D.new()
-			box.size = Vector3(float(x - start), 1.0, 1.0)
-			shape.shape = box
-			shape.position = Vector3((float(start) + float(x)) * 0.5, -0.5, float(z) + 0.5)
-			body.add_child(shape)
-
-
-func _is_solid_floor(x: int, z: int) -> bool:
-	var p := Vector2(float(x) + 0.5, float(z) + 0.5)
-	for g in Game.gaps:
-		if g.has_point(p):
-			return false
-	for r in _floor_rects:
-		if r.has_point(p):
-			return true
-	return false
-
-
-func _build_ground() -> void:
-	# Um chão de colisão único; as salas só pintam o chão.
-	var body := StaticBody3D.new()
-	body.name = "ChaoColisao"
-	body.collision_layer = Game.LAYER_WORLD
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(160, 1, 80)
-	shape.shape = box
-	body.add_child(shape)
-	body.position = Vector3(45, -0.5, 0)
-	add_child(body)
-
-
-func _floor(x0: float, z0: float, x1: float, z1: float, color: Color) -> void:
-	_floor_rects.append(Rect2(x0, z0, x1 - x0, z1 - z0))
-	var ground := _box_visual(Vector3((x0 + x1) * 0.5, -0.1, (z0 + z1) * 0.5), Vector3(x1 - x0, 0.2, z1 - z0), color)
-	Look.texture_std(ground.material_override, _floor_tex[0], _floor_tex[1], _floor_tex[2])
-	# Linhas da grade de 2 m.
-	var grid_color := color.darkened(0.15)
-	var x := ceilf(x0 / 2.0) * 2.0
-	while x <= x1:
-		_box_visual(Vector3(x, 0.005, (z0 + z1) * 0.5), Vector3(0.04, 0.01, z1 - z0), grid_color)
-		x += 2.0
-	var z := ceilf(z0 / 2.0) * 2.0
-	while z <= z1:
-		_box_visual(Vector3((x0 + x1) * 0.5, 0.005, z), Vector3(x1 - x0, 0.01, 0.04), grid_color)
-		z += 2.0
-
-
-## Sala retangular. openings/glass: {"N"|"S"|"W"|"E": [[centro, largura], ...]}
-func _room(x0: float, z0: float, x1: float, z1: float, color: Color, openings: Dictionary = {}, glass: Dictionary = {}, skip: Array = []) -> void:
-	_floor(x0, z0, x1, z1, color)
-	var t := WALL_T
-	for side in ["N", "S", "W", "E"]:
-		if side in skip:
-			continue
-		var holes: Array = openings.get(side, [])
-		var panes: Array = glass.get(side, [])
-		var horizontal: bool = side == "N" or side == "S"
-		var a := x0 - t if horizontal else z0
-		var b := x1 + t if horizontal else z1
-		var cuts: Array = []
-		for o in holes:
-			cuts.append([float(o[0]) - float(o[1]) * 0.5, float(o[0]) + float(o[1]) * 0.5, false])
-		for g in panes:
-			cuts.append([float(g[0]) - float(g[1]) * 0.5, float(g[0]) + float(g[1]) * 0.5, true])
-		cuts.sort_custom(func(p: Array, q: Array) -> bool: return float(p[0]) < float(q[0]))
-		var cursor := a
-		for cut in cuts:
-			var c0: float = cut[0]
-			var c1: float = cut[1]
-			if c0 > cursor:
-				_side_wall(side, cursor, c0, x0, z0, x1, z1, false)
-			if cut[2]:
-				_side_wall(side, c0, c1, x0, z0, x1, z1, true)
-			cursor = c1
-		if cursor < b:
-			_side_wall(side, cursor, b, x0, z0, x1, z1, false)
-
-
-func _side_wall(side: String, a: float, b: float, x0: float, z0: float, x1: float, z1: float, is_glass: bool) -> void:
-	var t := WALL_T
-	var col := Color(0.55, 0.8, 1.0, 0.35) if is_glass else Color(0.62, 0.63, 0.66)
-	var body: StaticBody3D
-	match side:
-		"N":
-			body = _wall(a, z0 - t, b, z0, WALL_H, col)
-		"S":
-			body = _wall(a, z1, b, z1 + t, WALL_H, col)
-		"W":
-			body = _wall(x0 - t, a, x0, b, WALL_H, col)
-		_:
-			body = _wall(x1, a, x1 + t, b, WALL_H, col)
-	if is_glass:
-		# O vidro aparece como mureta de 1 m (continua bloqueando 3 m).
-		var mi := body.get_child(1) as MeshInstance3D
-		var bm := mi.mesh as BoxMesh
-		bm.size = Vector3(bm.size.x, GLASS_VISUAL_H, bm.size.z)
-		mi.position.y = GLASS_VISUAL_H * 0.5 - WALL_H * 0.5
-
-
-## Corredor leste-oeste de 4 m de largura centrado em z.
-func _corridor_x(x0: float, x1: float, z: float, color: Color) -> void:
-	var room_tex := _floor_tex
-	_floor_tex = CORRIDOR_TEX
-	_floor(x0, z - 2, x1, z + 2, color)
-	_floor_tex = room_tex
-	_wall(x0, z - 2 - WALL_T, x1, z - 2, WALL_H)
-	_wall(x0, z + 2, x1, z + 2 + WALL_T, WALL_H)
-
-
-func _wall(x0: float, z0: float, x1: float, z1: float, height: float, color: Color = Color(0.62, 0.63, 0.66)) -> StaticBody3D:
-	var size := Vector3(x1 - x0, height, z1 - z0)
-	var center := Vector3((x0 + x1) * 0.5, height * 0.5, (z0 + z1) * 0.5)
-	# Paredes opacas: concreto do bunker (a cor vira a tinta da foto).
-	if color.a >= 1.0 and color == Color(0.62, 0.63, 0.66):
-		color = WALL_TEX[2]
-	var body := _box_body(center, size, color, Game.LAYER_WORLD)
-	var mi := body.get_child(1) as MeshInstance3D
-	if color == WALL_TEX[2]:
-		Look.texture_std(mi.material_override, WALL_TEX[0], WALL_TEX[1], color)
-	_walls.append({
-		"body": body,
-		"rect": Rect2(x0, z0, x1 - x0, z1 - z0),
-		"mat": mi.material_override,
-		"color": color,
-		"faded": false,
-	})
-	return body
 
 
 func _crate(cx: float, cz: float, sx: float, sz: float) -> void:

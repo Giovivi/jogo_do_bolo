@@ -1,10 +1,12 @@
 extends SceneTree
-## Checagem das regras de parede do hub (prancha reforma-hub-diagnostico-v1).
+## Checagem das regras de parede do hub e da fase (prancha reforma-hub-diagnostico-v1).
 ## Monta a escola e acusa:
 ##   - faces de caixas no mesmo plano, viradas para o mesmo lado e sobrepostas
 ##     (z-fighting: as texturas "piscam");
 ##   - caixas visíveis e altas (mais de 1,5 m) sem colisão (a câmera entraria).
-## Uso: godot --headless -s res://tools/checa_hub.gd   (sai com erro se achar algo)
+## Uso: godot --headless -s res://tools/checa_hub.gd            (hub)
+##      godot --headless -s res://tools/checa_hub.gd -- fase    (fase 1)
+## Sai com erro se achar algo.
 
 const TOL := 0.004
 const MIN_AREA := 0.01
@@ -15,6 +17,8 @@ var _main: Node
 
 func _initialize() -> void:
 	MainMenu.shown = true
+	if "fase" in OS.get_cmdline_user_args():
+		root.get_node("Game").mode = "fase"
 	_main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(_main)
 

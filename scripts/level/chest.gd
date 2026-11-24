@@ -49,7 +49,7 @@ func _ready() -> void:
 	# Ferragens do corpo: cinta de baixo, duas cintas verticais e fechadura na frente.
 	_piece(self, Vector3(w + 0.04, 0.08, d + 0.04), trim, Vector3(0, 0.04, 0))
 	for x in [-w * 0.33, w * 0.33]:
-		_piece(self, Vector3(0.1, h + 0.01, d + 0.04), trim, Vector3(x, h * 0.5, 0))
+		_piece(self, Vector3(0.1, h + 0.01, d + 0.05), trim, Vector3(x, h * 0.5, 0))
 	_piece(self, Vector3(0.22, 0.26, 0.04), trim, Vector3(0, h - 0.1, d * 0.5 + 0.02))
 	var hole := StandardMaterial3D.new()
 	hole.albedo_color = Color(0.05, 0.04, 0.03)
