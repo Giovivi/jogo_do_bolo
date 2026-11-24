@@ -16,14 +16,8 @@ Cada pasta tem só a cor (`_color.jpg`) e o normal no padrão OpenGL (`_normal.j
 | `Planks023A/` | Planks 023 A | https://ambientcg.com/a/Planks023A | Hub: madeira (passarela, caixas, tábuas, bancos) |
 | `PaintedMetal006/` | Painted Metal 006 | https://ambientcg.com/a/PaintedMetal006 | Hub: armários e metal pintado |
 | `Concrete044D/` | Concrete 044 D | https://ambientcg.com/a/Concrete044D | Hub: marquise, caminho, laje do mezanino e entulho · Fase: piso da entrada, corredores e saída |
-| `Concrete031/` | Concrete 031 | https://ambientcg.com/a/Concrete031 | Fase: paredes de concreto do bunker |
-| `Concrete032/` | Concrete 032 | https://ambientcg.com/a/Concrete032 | Fase: estrutura acima das paredes e cortes baixos |
-| `Metal027/` | Metal 027 | https://ambientcg.com/a/Metal027 | Fase: faixa escura no topo das paredes |
-| `Tiles140/` | Tiles 140 | https://ambientcg.com/a/Tiles140 | Fase: piso da triagem e das celas |
-| `Concrete046/` | Concrete 046 | https://ambientcg.com/a/Concrete046 | Fase: piso do hangar |
-| `DiamondPlate008A/` | Diamond Plate 008 A | https://ambientcg.com/a/DiamondPlate008A | Fase: plataformas, passarela do hangar e piso do cofre |
-| `PaintedMetal016/` | Painted Metal 016 | https://ambientcg.com/a/PaintedMetal016 | Fase: faixa de aviso amarela e preta nas bordas das plataformas e porta de serviço |
-| `MetalPlates014/` | Metal Plates 014 | https://ambientcg.com/a/MetalPlates014 | Hub: bancadas do laboratório · Fase: grade da cela, sala secreta, caixotes, portas blindadas e ferragens dos baús |
+| `PaintedMetal016/` | Painted Metal 016 | https://ambientcg.com/a/PaintedMetal016 | Fase: faixas de aviso amarelas e pretas (plataformas, poços, portas) |
+| `MetalPlates014/` | Metal Plates 014 | https://ambientcg.com/a/MetalPlates014 | Hub: bancadas do laboratório · Fase: grade da cela e ferragens dos baús |
 | `Planks037A/` | Planks 037 A | https://ambientcg.com/a/Planks037A | Fase: madeira dos baús |
 | `Bricks094/` | Bricks 094 | https://ambientcg.com/a/Bricks094 | Hub: tijolo velho da fachada, paredes externas, chaminés e garagem |
 | `RoofingTiles003/` | Roofing Tiles 003 | https://ambientcg.com/a/RoofingTiles003 | Hub: telhado de ardósia do corpo central e do pavilhão leste |
@@ -36,3 +30,5 @@ Cada pasta tem só a cor (`_color.jpg`) e o normal no padrão OpenGL (`_normal.j
 | `Concrete047A/` | Concrete 047 A | https://ambientcg.com/a/Concrete047A | Hub: asfalto do acesso de veículos |
 | `WoodFloor003/` | Wood Floor 003 | https://ambientcg.com/a/WoodFloor003 | Hub: assoalho gasto dos corredores e da galeria |
 | `WoodFloor004/` | Wood Floor 004 | https://ambientcg.com/a/WoodFloor004 | Hub: assoalho do refeitório, biblioteca e convivência |
+| `MetalPlates005/` | Metal Plates 005 | https://ambientcg.com/a/MetalPlates005 | Fase (base secreta): painéis de metal escuro das paredes |
+| `MetalPlates004/` | Metal Plates 004 | https://ambientcg.com/a/MetalPlates004 | Fase (base secreta): piso, teto e plataformas |

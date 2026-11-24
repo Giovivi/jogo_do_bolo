@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cdn1gw13cd0rq"
-path="res://.godot/imported/Tiles140_color.jpg-388105e9f0816ad4d4328e4cca02a5f9.ctex"
+uid="uid://7ct04oll5dst"
+path="res://.godot/imported/MetalPlates004_normal.jpg-a237c72a2a789d853c23a1e30c58f432.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/textures/Tiles140/Tiles140_color.jpg"
-dest_files=["res://.godot/imported/Tiles140_color.jpg-388105e9f0816ad4d4328e4cca02a5f9.ctex"]
+source_file="res://assets/textures/MetalPlates004/MetalPlates004_normal.jpg"
+dest_files=["res://.godot/imported/MetalPlates004_normal.jpg-a237c72a2a789d853c23a1e30c58f432.ctex"]
 
 [params]
 
@@ -31,4 +31,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1
