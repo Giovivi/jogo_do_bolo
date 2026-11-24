@@ -74,13 +74,12 @@ static func glow(color: Color, energy: float = 2.5) -> ShaderMaterial:
 	return surface(color, {"variation": 0.05, "emission_color": color, "emission_energy": energy})
 
 
-## Tijolo aparente velho (Bricks097), sem musgo. Passe outra foto com
-## Look.tex(...) nas opções, ou "tex_amount": 0.0 para o tijolo procedural.
+## Tijolo sem musgo. Passe a foto com Look.tex(...) nas opções, ou
+## "tex_amount": 0.0 para o tijolo procedural.
 static func brick(opts: Dictionary = {}) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = BRICK
-	var all := tex("Bricks097", Vector2(2.4, 1.2))
-	all.merge(opts, true)
+	var all := opts.duplicate()
 	# Escola seca e arenosa: sem musgo nem hera nas paredes.
 	all["moss_amount"] = 0.0
 	opts = all
