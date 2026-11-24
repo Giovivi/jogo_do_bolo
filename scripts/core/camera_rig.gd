@@ -8,6 +8,10 @@ extends Node3D
 ## Com Game.rules.camera_behind, vira a câmera de teste estilo GTA: baixa,
 ## atrás do ombro, girada pelo mouse (veja "atrás do herói" no fim).
 
+## O que segura a câmera atrás do herói: paredes, tetos e a passarela alta
+## (que é de outra camada, mas é visível e alta).
+const CAMERA_MASK := Game.LAYER_WORLD | Game.LAYER_WALKWAY
+
 ## Distância da câmera no nível aberto (100%).
 var distance: float = 40.0
 
@@ -326,13 +330,13 @@ func _place_behind(delta: float) -> void:
 	var back := basis.z
 	# Por cima do ombro direito, sem enfiar o ombro na parede ao lado.
 	var side := r.behind_shoulder
-	var side_hit := Game.raycast_world(pivot, pivot + basis.x * (side + 0.3))
+	var side_hit := Game.raycast_world(pivot, pivot + basis.x * (side + 0.3), CAMERA_MASK)
 	if not side_hit.is_empty():
 		side = maxf(0.0, pivot.distance_to(side_hit["position"]) - 0.3)
 	pivot += basis.x * side
 	# Parede atrás: a câmera chega mais perto do herói (entra rápido, sai devagar).
 	var want := r.behind_distance
-	var hit := Game.raycast_world(pivot, pivot + back * (want + 0.3))
+	var hit := Game.raycast_world(pivot, pivot + back * (want + 0.3), CAMERA_MASK)
 	if not hit.is_empty():
 		want = maxf(0.6, pivot.distance_to(hit["position"]) - 0.3)
 	if want < _arm or delta >= 1.0:
