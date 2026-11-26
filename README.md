@@ -57,7 +57,12 @@ O documento de design atualizado está em `docs/Projeto_Mutantes_GDD_v0.3.pdf`.
 - Clique: combo de garras 10/10/18, o 3º golpe é forte (empurra, interrompe e dá pausa de impacto). Garras não alcançam drones.
 - Q Asas de Fogo: asas de fogo abrem das costas e soltam um cone de 8 m e 90°, com chamas na horizontal. 25 de dano, acerta drones (recarga 6 s).
 - E Chama Azul: cura 30 no aliado mais perto do cursor, ou em si mesmo (recarga 12 s).
-- R Mergulho da Ave: agacha, sobe e sai da tela, volta como fênix de fogo até o cursor (até 12 m) e explode num raio de 6 m, 80 de dano.
+- R Mergulho da Ave: agacha, sobe e sai da tela, volta como fênix de fogo até o cursor (até 12 m) e explode num raio de 6 m, 80 de dano. Ao pousar, vira a **Forma Fênix** por 15 s (a barra do especial mostra o tempo que falta):
+  - Ave de fogo azul e dourada que paira (passa por cima de vãos) e anda a 7,5 m/s.
+  - Clique, Dança das Brasas: Corte Incandescente (asa em arco de 160°, 14, deixa fogo no chão), Giro Flamejante (360°, 14) e Mergulho da Fênix (avança 4,5 m atravessando inimigos, 22, e explode 12 em 2 m).
+  - Cada golpe do combo dá 1 Brasa no inimigo (até 3, somem em 5 s): brasas douradas girando e um anel de 3 partes no chão.
+  - Q, Tempestade de Penas: 9 penas em leque de 70° até 8 m, 6 por pena, +10 com 3 penas no mesmo inimigo, poças de fogo no chão. Estoura as Brasas: 12 por Brasa em 1,5 m (recarga 5 s).
+  - E, Investida Solar: dispara 9 m atravessando inimigos (15), rastro de fogo e explosão de 4 m no fim (35, derruba), +10 por Brasa dos inimigos atravessados (recarga 7 s).
 - Passivas: Renascer (1x por fase volta com 50% e explode 40 em volta) e Regeneração (3/s depois de 4 s fora de combate).
 
 **Feixe** (resgatado na sala 3)
