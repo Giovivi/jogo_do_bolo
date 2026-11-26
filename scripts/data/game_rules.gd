@@ -28,6 +28,32 @@ extends Resource
 ## da seção 3.7 é que nada fica transparente (o corte baixo continua).
 @export var wall_fade: bool = false
 
+@export_group("Câmera atrás do herói (teste)")
+## Verdadeiro = câmera baixa atrás do herói, girada pelo mouse (estilo GTA);
+## falso = a câmera de cima. A tela de Opções troca este valor.
+@export var camera_behind: bool = true
+## Distância da câmera até o ponto que ela olha, acima do herói (m).
+@export var behind_distance: float = 4.6
+## Altura do ponto que a câmera olha, acima dos pés (m).
+@export var behind_pivot_height: float = 1.5
+## Inclinação para baixo na posição padrão (graus).
+@export var behind_pitch_degrees: float = 16.0
+@export var behind_fov: float = 62.0
+## Câmera um pouco à direita do herói (por cima do ombro), em metros.
+@export var behind_shoulder: float = 0.55
+## Graus de giro por pixel do mouse.
+@export var behind_mouse_sensitivity: float = 0.18
+## Andando sem mexer o mouse por este tempo (s), a câmera volta para trás do herói.
+@export var behind_return_delay: float = 2.0
+## Rapidez dessa volta (maior = mais rápido); suave, com freio no fim.
+@export var behind_return_speed: float = 1.5
+## Mira automática: inimigo mais perto dentro deste ângulo (graus, para
+## cada lado) na frente do herói.
+@export var behind_aim_cone: float = 60.0
+## Retícula no centro da tela: o ataque vai para onde a câmera aponta.
+## Desligada: mira automática à frente do herói. Opções troca este valor.
+@export var behind_reticle: bool = false
+
 @export_group("Cenário em corte (diorama)")
 ## Paredes e estrutura do lado da câmera ficam cortadas nesta altura.
 @export var cutaway_height: float = 0.5

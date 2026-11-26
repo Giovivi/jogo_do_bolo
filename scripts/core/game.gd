@@ -217,15 +217,20 @@ func shake(amount: float, duration: float) -> void:
 
 ## Pausa e tremor de um acerto (seção 3.6). Só o que o herói controlado
 ## faz, ou sofre, mexe com o tempo e a câmera; a IA nunca.
-func impact_feedback(strength: int, source: Node, target: Node, killed: bool) -> void:
+func impact_feedback(strength: int, source: Node, target: Node, killed: bool, info: Dictionary = {}) -> void:
 	var s := clampi(strength, 0, 2)
 	if Impact.from_player(source):
 		var frames: int = Impact.HITSTOP_FRAMES[s]
+		var sh: Array = Impact.SHAKE[s]
+		if info.get("melee", false):
+			var heavy := 1 if s >= Impact.STRONG else 0
+			var ramp := minf(2.0, 1.0 + Impact.MELEE_COMBO_RAMP * float(info.get("combo", 0)))
+			frames = roundi(Impact.MELEE_HITSTOP_FRAMES[heavy] * ramp)
+			sh = Impact.MELEE_SHAKE[heavy]
 		if killed:
 			frames = maxi(frames, Impact.KILL_HITSTOP_FRAMES)
 		if frames > 0:
 			hitstop(float(frames) / 60.0)
-		var sh: Array = Impact.SHAKE[s]
 		shake(sh[0], sh[1])
 	elif target is Hero and (target as Hero).controlled and s >= Impact.STRONG:
 		var light: Array = Impact.SHAKE[Impact.STRONG]
@@ -338,6 +343,9 @@ func aim_target(from: Node3D, max_range: float) -> Actor:
 	if camera == null:
 		return null
 	var mouse: Vector2 = camera.get_viewport().get_mouse_position()
+	# Câmera atrás com retícula: mira no centro da tela.
+	if rules.camera_behind:
+		mouse = camera.get_viewport().get_visible_rect().size * 0.5
 	var right: Vector3 = camera.global_transform.basis.x
 	var best: Actor = null
 	var best_score: float = INF
@@ -358,6 +366,57 @@ func aim_target(from: Node3D, max_range: float) -> Actor:
 			best_score = score
 			best = a
 	return best
+
+
+## Câmera atrás do herói: o mais perto dentro do cone em frente a "dir",
+## com linha de visão. O ângulo pesa um pouco, para preferir o da frente.
+func front_pick(from: Vector3, dir: Vector3, max_range: float, candidates: Array) -> Actor:
+	var d2 := Vector2(dir.x, dir.z)
+	if d2.length() < 0.01:
+		return null
+	d2 = d2.normalized()
+	var cos_max := cos(deg_to_rad(rules.behind_aim_cone))
+	var best: Actor = null
+	var best_score: float = INF
+	for n in candidates:
+		var a := n as Actor
+		if a == null or a.is_dead:
+			continue
+		var to := Vector2(a.global_position.x - from.x, a.global_position.z - from.z)
+		var dist := to.length()
+		if dist > max_range + a.body_radius:
+			continue
+		var c := 1.0
+		if dist > 0.3:
+			c = to.normalized().dot(d2)
+			if c < cos_max:
+				continue
+		if not has_line_of_sight(from, a.global_position):
+			continue
+		var score := dist * (1.0 + (1.0 - c))
+		if score < best_score:
+			best_score = score
+			best = a
+	return best
+
+
+## Ponto para onde a retícula aponta: a primeira parede no centro da tela,
+## ou 25 m à frente da câmera.
+func reticle_point() -> Vector3:
+	if camera == null:
+		return Vector3.ZERO
+	var center := camera.get_viewport().get_visible_rect().size * 0.5
+	var origin := camera.project_ray_origin(center)
+	var dir := camera.project_ray_normal(center)
+	var to := origin + dir * 25.0
+	var hit := raycast_world(origin, to)
+	if not hit.is_empty():
+		return hit["position"]
+	return to
+
+
+func front_target(from: Node3D, dir: Vector3, max_range: float) -> Actor:
+	return front_pick(from.global_position, dir, max_range, living_enemies())
 
 
 ## Raio de laser: núcleo claro e fino dentro de um brilho vermelho.

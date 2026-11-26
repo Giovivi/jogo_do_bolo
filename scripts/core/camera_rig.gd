@@ -5,6 +5,12 @@ extends Node3D
 ## segue um pouco a mira e cada sala escolhe um nível de zoom (zonas de
 ## câmera). O zoom aproxima a câmera, nunca muda o FOV. Desliza até o novo
 ## herói na troca, já levando o zoom da sala dele.
+## Com Game.rules.camera_behind, vira a câmera de teste estilo GTA: baixa,
+## atrás do ombro, girada pelo mouse (veja "atrás do herói" no fim).
+
+## O que segura a câmera atrás do herói: paredes, tetos e a passarela alta
+## (que é de outra camada, mas é visível e alta).
+const CAMERA_MASK := Game.LAYER_WORLD | Game.LAYER_WALKWAY
 
 ## Distância da câmera no nível aberto (100%).
 var distance: float = 40.0
@@ -28,8 +34,18 @@ var _zoom_time: float = 0.8
 ## As zonas nascem logo depois da câmera: a primeira entra sem transição.
 var _snap_zone: bool = false
 
+# Câmera atrás do herói (Game.rules.camera_behind).
+var behind: bool = false
+var _yaw: float = 0.0
+var _pitch: float = 0.0
+## Segundos desde o último movimento do mouse.
+var _since_mouse: float = 999.0
+var _arm: float = 0.0
+
 
 func _ready() -> void:
+	# Roda pausado também, para soltar o cursor nos menus.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	var r := Game.rules
 	camera = Camera3D.new()
 	if r.camera_perspective:
@@ -44,6 +60,13 @@ func _ready() -> void:
 	camera.near = 0.1
 	camera.far = 300.0
 	camera.rotation_degrees = Vector3(-r.camera_pitch_degrees, r.camera_yaw_degrees, 0.0)
+	behind = r.camera_behind
+	if behind:
+		camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+		camera.fov = r.behind_fov
+		camera.near = 0.05
+		_pitch = deg_to_rad(-r.behind_pitch_degrees)
+		_arm = r.behind_distance
 	add_child(camera)
 	camera.current = true
 	Game.camera = camera
@@ -51,6 +74,9 @@ func _ready() -> void:
 
 func follow(new_target: Node3D, slide: bool) -> void:
 	target = new_target
+	if behind:
+		_follow_behind(new_target, slide)
+		return
 	# O nível de zoom da sala do novo herói vem junto.
 	var zone := _zone_at(new_target.global_position, 0.0)
 	if zone != null:
@@ -71,8 +97,15 @@ func follow(new_target: Node3D, slide: bool) -> void:
 
 
 func _process(delta: float) -> void:
+	if behind:
+		_update_mouse_mode()
+	if get_tree().paused:
+		return
 	_shake_time = maxf(0.0, _shake_time - delta)
 	if target == null or not is_instance_valid(target):
+		return
+	if behind:
+		_process_behind(delta)
 		return
 	_update_zone()
 	_tick_zoom(delta)
@@ -196,3 +229,122 @@ func _place() -> void:
 		var k := _shake_time / maxf(_shake_total, 0.001)
 		offset = (b.x * randf_range(-1.0, 1.0) + b.y * randf_range(-1.0, 1.0)) * _shake_amount * k
 	camera.global_position = _focus + b.z * d + lift + offset
+
+
+# ---------------------------------------------------------------- atrás do herói
+
+## Ângulo (yaw) que põe a câmera atrás de quem olha para "dir".
+static func _yaw_behind(dir: Vector3) -> float:
+	return atan2(-dir.x, -dir.z)
+
+
+func _hero_facing(t: Node3D) -> Vector3:
+	var a := t as Actor
+	if a != null and a.facing.length() > 0.1:
+		return a.facing
+	return -t.global_transform.basis.z
+
+
+func _follow_behind(new_target: Node3D, slide: bool) -> void:
+	if slide:
+		_slide_from = _focus
+		_slide_t = 0.0
+	else:
+		_focus = new_target.global_position
+		_slide_t = 1.0
+		_yaw = _yaw_behind(_hero_facing(new_target))
+		_pitch = deg_to_rad(-Game.rules.behind_pitch_degrees)
+	_place_behind(1.0)
+
+
+## Cursor preso (e escondido) durante o jogo; solto nos menus e pausa.
+func _update_mouse_mode() -> void:
+	var want := Input.MOUSE_MODE_VISIBLE
+	if not get_tree().paused and get_window().has_focus():
+		want = Input.MOUSE_MODE_CAPTURED
+	if Input.mouse_mode != want:
+		Input.mouse_mode = want
+
+
+func _exit_tree() -> void:
+	if behind:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+## O mouse gira a câmera em volta do herói.
+func _unhandled_input(event: InputEvent) -> void:
+	if not behind or get_tree().paused:
+		return
+	var mm := event as InputEventMouseMotion
+	if mm != null and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		var k := deg_to_rad(Game.rules.behind_mouse_sensitivity)
+		_yaw -= mm.relative.x * k
+		_pitch = clampf(_pitch - mm.relative.y * k, deg_to_rad(-60.0), deg_to_rad(25.0))
+		_since_mouse = 0.0
+
+
+## Para testes e pranchas: gira a câmera como se o mouse tivesse girado.
+func orbit_by(yaw_degrees: float, pitch_degrees: float = 0.0) -> void:
+	_yaw += deg_to_rad(yaw_degrees)
+	_pitch += deg_to_rad(pitch_degrees)
+	_since_mouse = 0.0
+
+
+func _process_behind(delta: float) -> void:
+	var r := Game.rules
+	_since_mouse += delta
+
+	var goal := target.global_position
+	var ground_y := goal.y
+	if target is CharacterBody3D and not (target as CharacterBody3D).is_on_floor():
+		ground_y = _focus.y
+	goal.y = ground_y
+	if _slide_t < 1.0:
+		_slide_t = minf(1.0, _slide_t + delta / r.camera_slide_time)
+		var k := 1.0 - pow(1.0 - _slide_t, 3.0)
+		_focus = _slide_from.lerp(goal, k)
+	else:
+		var y := lerpf(_focus.y, goal.y, 1.0 - exp(-6.0 * delta))
+		_focus = _focus.lerp(goal, 1.0 - exp(-16.0 * delta))
+		_focus.y = y
+
+	# Andando sem mexer o mouse: volta devagar para trás do herói.
+	if _since_mouse >= r.behind_return_delay and _moving():
+		var f := 1.0 - exp(-r.behind_return_speed * delta)
+		_yaw += angle_difference(_yaw, _yaw_behind(_hero_facing(target))) * f
+		_pitch = lerpf(_pitch, deg_to_rad(-r.behind_pitch_degrees), f)
+	_place_behind(delta)
+
+
+func _moving() -> bool:
+	var b := target as CharacterBody3D
+	if b == null:
+		return false
+	return Vector2(b.velocity.x, b.velocity.z).length() > 0.5
+
+
+func _place_behind(delta: float) -> void:
+	var r := Game.rules
+	var pivot := _focus + Vector3.UP * r.behind_pivot_height
+	var basis := Basis.from_euler(Vector3(_pitch, _yaw, 0.0))
+	var back := basis.z
+	# Por cima do ombro direito, sem enfiar o ombro na parede ao lado.
+	var side := r.behind_shoulder
+	var side_hit := Game.raycast_world(pivot, pivot + basis.x * (side + 0.3), CAMERA_MASK)
+	if not side_hit.is_empty():
+		side = maxf(0.0, pivot.distance_to(side_hit["position"]) - 0.3)
+	pivot += basis.x * side
+	# Parede atrás: a câmera chega mais perto do herói (entra rápido, sai devagar).
+	var want := r.behind_distance
+	var hit := Game.raycast_world(pivot, pivot + back * (want + 0.3), CAMERA_MASK)
+	if not hit.is_empty():
+		want = maxf(0.6, pivot.distance_to(hit["position"]) - 0.3)
+	if want < _arm or delta >= 1.0:
+		_arm = want
+	else:
+		_arm = lerpf(_arm, want, 1.0 - exp(-3.0 * delta))
+	var offset := Vector3.ZERO
+	if _shake_time > 0.0:
+		var k := _shake_time / maxf(_shake_total, 0.001)
+		offset = (basis.x * randf_range(-1.0, 1.0) + basis.y * randf_range(-1.0, 1.0)) * _shake_amount * k * 0.5
+	camera.global_transform = Transform3D(basis, pivot + back * _arm + offset)

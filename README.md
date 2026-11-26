@@ -55,9 +55,9 @@ O documento de design atualizado está em `docs/Projeto_Mutantes_GDD_v0.3.pdf`.
 
 **Fênix** (começa sozinho)
 - Clique: combo de garras 10/10/18, o 3º golpe é forte (empurra, interrompe e dá pausa de impacto). Garras não alcançam drones.
-- Q Asas de Fogo: cone de 25 de dano, acerta drones (recarga 6 s).
+- Q Asas de Fogo: asas de fogo abrem das costas e soltam um cone de 8 m e 90°, com chamas na horizontal. 25 de dano, acerta drones (recarga 6 s).
 - E Chama Azul: cura 30 no aliado mais perto do cursor, ou em si mesmo (recarga 12 s).
-- R Mergulho da Ave: voa até o cursor (até 12 m) e explode em área, 80 de dano. Ao pousar, vira a **Forma Fênix** por 15 s (a barra do especial mostra o tempo que falta):
+- R Mergulho da Ave: agacha, sobe e sai da tela, volta como fênix de fogo até o cursor (até 12 m) e explode num raio de 6 m, 80 de dano. Ao pousar, vira a **Forma Fênix** por 15 s (a barra do especial mostra o tempo que falta):
   - Ave de fogo azul e dourada que paira (passa por cima de vãos) e anda a 7,5 m/s.
   - Clique, Dança das Brasas: Corte Incandescente (asa em arco de 160°, 14, deixa fogo no chão), Giro Flamejante (360°, 14) e Mergulho da Fênix (avança 4,5 m atravessando inimigos, 22, e explode 12 em 2 m).
   - Cada golpe do combo dá 1 Brasa no inimigo (até 3, somem em 5 s): brasas douradas girando e um anel de 3 partes no chão.
@@ -68,9 +68,9 @@ O documento de design atualizado está em `docs/Projeto_Mutantes_GDD_v0.3.pdf`.
 **Feixe** (resgatado na sala 3)
 Tudo em raio laser vermelho: um raio fino com núcleo claro, e um clarão estrelado que sai do rosto a cada disparo.
 - Clique, Raio Laser: instantâneo, 8 de dano, alcance de 15 m, para no primeiro inimigo ou parede. Aciona o interruptor do hangar.
-- Q, Raio Forte: segurar, 12/s por até 3 s, anda devagar. É grosso, atravessa todos os inimigos da linha e interrompe quem acerta. Corta a porta blindada do cofre.
-- E, Cone de Raios: leque de 90° com 6 m de alcance, 15 de dano. Empurra 2,5 m e acerta drones.
-- R, Suprema em Círculo: explosão de raios com raio de 14 m em volta do Feixe, que pega a sala toda. Dá 120 de dano e derruba.
+- Q, Raio Forte: segurar, 12/s por até 3 s, anda devagar e o tranco o empurra para trás (~1 m em 3 s), com a mão na têmpora. Faíscas giram em volta do raio, anéis de pressão correm por ele e sai um respingo de luz onde bate. É grosso, atravessa todos os inimigos da linha e interrompe quem acerta. Corta a porta blindada do cofre.
+- E, Cone de Raios: leque liso de energia de 90° com 6 m de alcance que se abre dos óculos, com a borda acesa e ondas correndo para fora. 15 de dano. Empurra 2,5 m e acerta drones.
+- R, Suprema em Círculo: com a mão na têmpora, um raio de 14 m dá uma volta inteira no sentido horário em ~1,2 s e o corpo vira junto. Cada inimigo no alcance leva 120 de dano e cai quando o raio passa por ele; o chão por onde o raio passou fica vermelho e vai apagando.
 
 **Grupo**
 - Troca 1 a 4 assume o aliado onde ele está, a câmera desliza em ~0,25 s, sem ataque de entrada.
@@ -101,16 +101,20 @@ Cada golpe tem uma força (seção 3.6 da especificação de mecânicas). A for�
 - O escudo frontal só recua o soldado, sem interromper.
 - Quem apanha pisca em vermelho. No ponto do acerto aparece uma chama dourada (comum) ou azul (forte) do Fênix, e uma faísca vermelha do Feixe. O Raio Forte interrompe sem pausar o jogo a cada pulso.
 - O herói: golpe comum só dá um tranquinho. Ataque forte interrompe por ~0,3 s, e o dash cancela a interrupção. Não há invulnerabilidade depois de apanhar.
-- A Suprema em Círculo deixa o Feixe invulnerável por ~0,35 s.
+- A Suprema em Círculo deixa o Feixe parado e invulnerável durante a volta (~1,2 s).
 - O tremor de câmera pode ser desligado em `data/regras.tres` (`screen_shake`). Os números de cada força ficam em `scripts/combat/impact.gd`.
 
 ## Roteiro da fase (10 a 15 min)
 
+A fase é um anel: a ida corre pela linha de baixo (da esquerda para a direita na tela) e a volta pela linha de cima. Como a câmera olha para o norte, a volta nunca fica entre a câmera e o herói, e a Saída fica logo acima da Entrada.
+
 1. **Entrada:** 4 soldados. Baú numa saliência atrás de um vão de 2 m (ensina o planar).
-2. **Triagem:** 6 soldados e 2 drones, 3 baús. Sala secreta ao norte atrás de um vão de 4 m. Pelo vidro ao sul dá para ver o cofre.
-3. **Celas:** use o console (F). Aguente 60 s de onda (6 soldados, 3 drones). O Feixe entra no grupo. Se ele já foi resgatado antes, começa a fase ao lado do Fênix e a cela fica aberta e vazia.
-4. **Hangar:** 4 drones e 1 soldado com escudo. Troque para o Feixe e acerte o interruptor da passarela alta: abre a porta de serviço ao sul.
-5. **Volta:** corredor com 2 soldados, porta blindada do cofre (laser do Feixe), baú raro, e a **Saída** com o baú final e a tela de resultado (tempo e baús 8/8).
+2. **Triagem:** 6 soldados e 2 drones, 3 baús. No fundo, o vidro blindado mostra o cofre. A porta no mezanino leva ao vão de 4 m e à sala secreta (só o Fênix passa).
+3. **Celas:** use o console (F). Aguente 60 s de onda (6 soldados, 3 drones). Os inimigos entram pelas portas laterais e pelos cantos do fundo, e o ponto de entrada pisca em vermelho 1 s antes. O Feixe entra no grupo. Se ele já foi resgatado antes, começa a fase ao lado do Fênix e a cela fica aberta e vazia.
+4. **Hangar:** 4 drones e 1 soldado com escudo. Troque para o Feixe e acerte o interruptor da passarela alta: abre a porta de serviço no fundo do hangar.
+5. **Depósito (volta):** 2 soldados e 1 soldado com escudo, caixas para se cobrir e 1 baú na plataforma.
+6. **Cofre:** porta blindada (laser do Feixe) e baú raro.
+7. **Saída:** sobe pelo norte do cofre e volta para cima da Entrada. Baú final e tela de resultado (tempo e baús 9/9).
 
 Os baús e grupos de inimigos são sorteados entre pontos candidatos (`Marker3D` no nó `Candidatos`) a cada entrada. A semente aparece no console da Godot.
 
@@ -129,6 +133,7 @@ A câmera padrão olha de frente para a parede do fundo, com 22° de inclinaçã
 - A troca de zoom leva 0,8 s, com aceleração e freio. Ela só acontece depois que o herói entra 1 m na outra sala, e os corredores sem zona mantêm o nível anterior.
 - Na troca de herói, o deslize de 0,25 s já leva o zoom da sala do novo herói. Combate e especiais não mexem no zoom.
 - Nada fica transparente na frente do herói. O efeito antigo está desligado (`wall_fade`), e o corte baixo das paredes da frente continua.
+- Na fase, toda parede de borda passa pelo corte, mesmo as que encostam 0,5 m no chão da sala vizinha. A estrutura até 2 m ao lado do chão andável também fica baixa, para a quina não tampar o herói quando a câmera segue a mira para o lado. A escola não usa essas duas regras.
 
 Em `data/regras.tres` (grupos "Câmera" e "Cenário em corte") dá para ajustar o giro, a inclinação, a perspectiva, a abertura (`camera_fov`), o enquadramento e as alturas do corte. Para voltar à isométrica antiga, use giro 45, inclinação 30 e `camera_perspective` desligado. A mira pelo mouse funciona em todos os modos.
 

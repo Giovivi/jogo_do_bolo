@@ -303,10 +303,22 @@ func _process_player(_delta: float) -> Vector3:
 	var move := axes[1] * input.x + axes[0] * input.y
 	if move.length() > 1.0:
 		move = move.normalized()
-	var aim := Game.mouse_ground_point(global_position.y)
-	# Mira pela tela: com o cursor em cima de um inimigo (drone incluído),
-	# o herói mira nele, e não no chão atrás dele.
-	aim_target = Game.aim_target(self, AIM_RANGE)
+	var aim: Vector3
+	if Game.rules.camera_behind and Game.rules.behind_reticle:
+		# Câmera atrás com retícula: mira no centro da tela.
+		aim = Game.reticle_point()
+		aim_target = Game.aim_target(self, AIM_RANGE)
+	elif Game.rules.camera_behind:
+		# Câmera atrás: sem cursor. Mira para onde o herói anda/olha, presa no
+		# inimigo mais perto à frente dele.
+		var look := move if move.length() > 0.1 else facing
+		aim_target = Game.front_target(self, look, AIM_RANGE)
+		aim = global_position + look.normalized() * 6.0
+	else:
+		aim = Game.mouse_ground_point(global_position.y)
+		# Mira pela tela: com o cursor em cima de um inimigo (drone incluído),
+		# o herói mira nele, e não no chão atrás dele.
+		aim_target = Game.aim_target(self, AIM_RANGE)
 	if aim_target != null:
 		aim = aim_target.global_position
 	# Corpo olha para onde anda; ao atacar ou usar habilidade, vira para o alvo

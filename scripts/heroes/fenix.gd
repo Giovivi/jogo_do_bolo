@@ -139,6 +139,8 @@ func claw_attack() -> bool:
 				"strength": Impact.STRONG if finisher else Impact.WEAK,
 				"dir": facing,
 				"ability": false,
+				"melee": true,
+				"combo": step,
 			}
 			deal_damage(enemy, dmg, info)
 			hit_any = true
@@ -175,7 +177,14 @@ func blue_flame(aim: Vector3, use_mouse: bool, forced_target: Hero = null) -> bo
 		return false
 	var s := _fx()
 	var target: Hero = forced_target
-	if target == null and use_mouse and Game.party != null:
+	if target == null and use_mouse and Game.party != null and Game.rules.camera_behind and not Game.rules.behind_reticle:
+		# Câmera atrás: o aliado mais perto na frente do Fênix.
+		var allies: Array = []
+		for h in Game.party.living_heroes():
+			if h != self:
+				allies.append(h)
+		target = Game.front_pick(global_position, facing, 10.0, allies) as Hero
+	elif target == null and use_mouse and Game.party != null:
 		var best_d := s.heal_pick_radius
 		for h in Game.party.living_heroes():
 			if h == self:
@@ -220,7 +229,8 @@ func use_special(aim: Vector3) -> bool:
 		back.y = 0.0
 		dest = Vector3(p.x, global_position.y, p.z) + back.normalized() * 0.8
 	# Pousa na altura do chão de destino (plataforma, chão ou vão).
-	var down := Game.raycast_world(dest + Vector3(0, 6, 0), dest + Vector3(0, -6, 0), Game.LAYER_WORLD | Game.LAYER_WALKWAY)
+	# O raio nasce pouco acima da plataforma mais alta (2 m), abaixo do teto.
+	var down := Game.raycast_world(Vector3(dest.x, global_position.y + 2.6, dest.z), dest + Vector3(0, -6, 0), Game.LAYER_WORLD | Game.LAYER_WALKWAY)
 	if not down.is_empty():
 		var g: Vector3 = down["position"]
 		dest.y = g.y + 0.05
