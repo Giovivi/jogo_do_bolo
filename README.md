@@ -66,11 +66,12 @@ O documento de design atualizado está em `docs/Projeto_Mutantes_GDD_v0.3.pdf`.
 - Passivas: Renascer (1x por fase volta com 50% e explode 40 em volta) e Regeneração (3/s depois de 4 s fora de combate).
 
 **Feixe** (resgatado na sala 3)
-Tudo em raio laser vermelho: um raio fino com núcleo claro, e um clarão estrelado que sai do rosto a cada disparo.
-- Clique, Raio Laser: instantâneo, 8 de dano, alcance de 15 m, para no primeiro inimigo ou parede. Aciona o interruptor do hangar.
-- Q, Raio Forte: segurar, 12/s por até 3 s, anda devagar e o tranco o empurra para trás (~1 m em 3 s), com a mão na têmpora. Faíscas giram em volta do raio, anéis de pressão correm por ele e sai um respingo de luz onde bate. É grosso, atravessa todos os inimigos da linha e interrompe quem acerta. Corta a porta blindada do cofre.
-- E, Cone de Raios: leque liso de energia de 90° com 6 m de alcance que se abre dos óculos, com a borda acesa e ondas correndo para fora. 15 de dano. Empurra 2,5 m e acerta drones.
-- R, Suprema em Círculo: com a mão na têmpora, um raio de 14 m dá uma volta inteira no sentido horário em ~1,2 s e o corpo vira junto. Cada inimigo no alcance leva 120 de dano e cai quando o raio passa por ele; o chão por onde o raio passou fica vermelho e vai apagando.
+Tudo em laser vermelho em camadas (núcleo #FFF4E8, vermelho #FF3038, sangue #B30D24, vinho #4A0714), sempre saindo dos óculos. 80 de vida, 5,5 m/s.
+- Passiva, Foco Óptico: 3 acertos seguidos no mesmo inimigo completam o Foco (três losangos sobre a cabeça e estrela nos óculos). O próximo disparo nesse inimigo dá 8 + 20 = 28, é forte e cancela a carga do tiro inimigo. Errar, trocar de alvo ou matar zera; bloqueio do escudo não conta nem zera. Sem tempo limite.
+- Clique, Disparo Óptico: instantâneo, 8 de dano a cada 0,25 s, alcance de 15 m, para no primeiro inimigo ou parede. Aciona o interruptor do hangar.
+- Q, Feixe de Contenção: segurar até 3 s, 15 m por 1,2 m. O dano em cada inimigo cresce com o tempo que o feixe fica nele: 16/s no começo, 24/s com 1 s e 28/s com 2 s; sair do alvo zera a conta. O feixe fica mais largo e brilhante conforme o dano sobe. Anda a 35% e recua 0,3 m/s. Recarga de 8 s ao soltar. Corta a porta blindada do cofre.
+- E, Ruptura Óptica: um raio sai dos óculos e abre em leque horizontal de 110° na altura do rosto, 7 m. 20 de dano, empurra 3,5 m. Recarga de 10 s.
+- R, Aniquilação Circular: dedos na têmpora e o alcance marcado no chão (cortado pelas paredes), depois um raio de 14 m dá uma volta no sentido horário em 1,2 s. 120 de dano e derruba; paredes bloqueiam. Deixa um rastro contínuo no chão que apaga atrás do raio. Invulnerável durante a habilidade.
 
 **Grupo**
 - Troca 1 a 4 assume o aliado onde ele está, a câmera desliza em ~0,25 s, sem ataque de entrada.
@@ -96,12 +97,12 @@ Cada golpe tem uma força (seção 3.6 da especificação de mecânicas). A for�
 | Golpe que mata | qualquer um | pelo menos ~4 quadros | explosão curta | conforme a força |
 
 - Só os golpes do herói que você controla pausam o jogo e tremem a câmera. Os da IA não.
-- O Cone de Raios empurra mais (2,5 m, `pulse_push_meters` em `data/feixe.tres`), porque essa é a função dele.
+- A Ruptura Óptica empurra mais (3,5 m, `pulse_push_meters` em `data/feixe.tres`), porque essa é a função dele.
 - O drone não cai: é jogado para trás e balança.
 - O escudo frontal só recua o soldado, sem interromper.
-- Quem apanha pisca em vermelho. No ponto do acerto aparece uma chama dourada (comum) ou azul (forte) do Fênix, e uma faísca vermelha do Feixe. O Raio Forte interrompe sem pausar o jogo a cada pulso.
+- Quem apanha pisca em vermelho. No ponto do acerto aparece uma chama dourada (comum) ou azul (forte) do Fênix, e uma faísca vermelha do Feixe. O Feixe de Contenção interrompe sem pausar o jogo a cada pulso.
 - O herói: golpe comum só dá um tranquinho. Ataque forte interrompe por ~0,3 s, e o dash cancela a interrupção. Não há invulnerabilidade depois de apanhar.
-- A Suprema em Círculo deixa o Feixe parado e invulnerável durante a volta (~1,2 s).
+- A Aniquilação Circular deixa o Feixe parado e invulnerável durante a volta (~1,2 s).
 - O tremor de câmera pode ser desligado em `data/regras.tres` (`screen_shake`). Os números de cada força ficam em `scripts/combat/impact.gd`.
 
 ## Roteiro da fase (10 a 15 min)
