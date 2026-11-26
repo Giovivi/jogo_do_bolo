@@ -2,6 +2,9 @@ class_name Fenix
 extends Hero
 ## Fênix: corpo a corpo rápido. Garras, Asas de Fogo, Chama Azul,
 ## Mergulho da Ave, Renascer, Regeneração e Planar.
+## A suprema (Mergulho da Ave) termina na Forma Fênix: por form_duration s
+## ele vira uma ave de fogo com outro kit (Dança das Brasas, Tempestade de
+## Penas, Investida Solar) e marca os inimigos com Brasa.
 
 var rebirth_used: bool = false
 
@@ -11,6 +14,15 @@ var _gliding: bool = false
 var _glide_dir: Vector3 = Vector3.ZERO
 var _glide_travelled: float = 0.0
 var model: FenixModel
+
+## Forma Fênix: segundos que faltam (0 = forma humana).
+var form_time: float = 0.0
+var form: PhoenixForm
+## Fogo no chão que queima inimigos: [posição, raio, dano por s, tempo que falta].
+var _burns: Array = []
+var _burn_tick: float = 0.0
+## Investida Solar / Mergulho da Fênix em andamento.
+var _rush: Dictionary = {}
 
 ## Tempos da Chama Azul e do Mergulho da Ave (o mergulho em si usa dive_time).
 const ABSORB_TIME := 0.55
@@ -45,12 +57,27 @@ func _physics_process(delta: float) -> void:
 	_combo_timer = maxf(0.0, _combo_timer - delta)
 	if _combo_timer <= 0.0:
 		_combo_step = 0
+	_tick_burns(delta)
+	if form_time > 0.0 and not is_dead:
+		form_time = maxf(0.0, form_time - delta)
+		# A barra do especial mostra o tempo que falta da forma.
+		special = stats.special_max * form_time / _fx().form_duration
+		if form_time <= 0.0:
+			exit_form()
 	super._physics_process(delta)
 
 
 # ---------------------------------------------------------------- jogador
 
 func _player_actions(aim: Vector3, _move: Vector3) -> void:
+	if in_form():
+		if Input.is_action_pressed("attack"):
+			ember_dance()
+		if Input.is_action_just_pressed("ability_1"):
+			featherstorm()
+		if Input.is_action_just_pressed("ability_2"):
+			solar_rush()
+		return
 	if Input.is_action_pressed("attack"):
 		claw_attack()
 	if Input.is_action_just_pressed("ability_1"):
@@ -61,6 +88,15 @@ func _player_actions(aim: Vector3, _move: Vector3) -> void:
 
 func ability_slots() -> Array:
 	var s := _fx()
+	if in_form():
+		return [
+			["Clique", "Dança das Brasas (golpe %d/3)" % (_combo_step % 3 + 1), 0.0, 0.0],
+			["Q", "Tempestade de Penas", cooldown_left("fq"), s.feather_cooldown],
+			["E", "Investida Solar", cooldown_left("fe"), s.rush_cooldown],
+			["R", "Forma Fênix (%d s)" % ceili(form_time), 0.0, 0.0],
+			["Shift", "Dash", cooldown_left("dash"), s.dash_cooldown],
+			["Passiva", "Renascer: " + ("usado" if rebirth_used else "pronto"), 0.0, 0.0],
+		]
 	return [
 		["Clique", "Garras (combo %d/3)" % (_combo_step % 3 + 1), 0.0, 0.0],
 		["Q", "Asas de Fogo", cooldown_left("q"), s.q_cooldown],
@@ -230,6 +266,299 @@ func _dive_land() -> void:
 			var dir := enemy.global_position - global_position
 			dir.y = 0.0
 			deal_damage(enemy, s.dive_damage, {"strength": Impact.SPECIAL, "ability": true, "dir": dir, "color": Color(1, 0.5, 0.1)})
+	# A ave não volta a ser humano: continua como fênix.
+	enter_form()
+
+
+# ---------------------------------------------------------------- Forma Fênix
+
+func in_form() -> bool:
+	return form_time > 0.0
+
+
+func enter_form() -> void:
+	var s := _fx()
+	form_time = s.form_duration
+	special = stats.special_max
+	move_multiplier = s.form_move_speed / stats.move_speed
+	_combo_step = 0
+	cooldowns["fq"] = 0.0
+	cooldowns["fe"] = 0.0
+	model.visible = false
+	if form == null:
+		form = PhoenixForm.new()
+		form.hero = self
+		visual.add_child(form)
+	if controlled:
+		Game.message("Forma Fênix! Clique, Q e E mudaram por %d s." % int(s.form_duration), 2.5)
+
+
+func exit_form() -> void:
+	form_time = 0.0
+	special = 0.0
+	move_multiplier = 1.0
+	_combo_step = 0
+	if form != null:
+		form.queue_free()
+		form = null
+	model.visible = true
+	if not is_dead:
+		Game.flash_ring(global_position, 1.6, Color(0.4, 0.7, 1.0, 0.8), 0.4)
+
+
+## Durante a forma, a barra do especial não enche (ela mostra o tempo).
+func add_special(amount: float) -> void:
+	if in_form():
+		return
+	super.add_special(amount)
+
+
+## Acerto de golpe do combo: dano e uma Brasa.
+func _form_hit(enemy: Actor, amount: float, info: Dictionary, ember := true) -> void:
+	if deal_damage(enemy, amount, info) > 0.0 and ember and not enemy.is_dead:
+		var m := EmberMark.of(enemy)
+		m.duration = _fx().ember_duration
+		m.add(1, _fx().ember_max_stacks)
+
+
+## Básico da forma: Corte Incandescente, Giro Flamejante, Mergulho da Fênix.
+func ember_dance() -> bool:
+	if not cooldown_ready("basic") or ability_lock > 0.0 or not _rush.is_empty():
+		return false
+	var s := _fx()
+	var step := _combo_step % 3
+	var dmg := s.form_combo_damage[step]
+	_combo_step = step + 1
+	_combo_timer = s.combo_reset_time
+	var info := {"strength": Impact.WEAK, "dir": facing, "ability": false, "color": Color(0.4, 0.7, 1.0)}
+	match step:
+		0:
+			start_cooldown("basic", s.form_combo_interval)
+			form.hold("golpe_d", 0.25)
+			var half := s.form_slash_arc_degrees * 0.5
+			PhoenixFX.wing_arc(self, facing, s.form_slash_range, -half, half, 0.2, 1.0, 1.6)
+			# Fogo fica no chão ao longo do arco.
+			var b := Basis.looking_at(Vector3(facing.x, 0, facing.z).normalized(), Vector3.UP)
+			for i in 4:
+				var a := deg_to_rad(lerpf(-half * 0.8, half * 0.8, (i + 0.5) / 4.0))
+				var p := global_position + b * Vector3(sin(a) * s.form_slash_range * 0.85, 0, -cos(a) * s.form_slash_range * 0.85)
+				_add_burn(p, 0.8, s.form_slash_burn_dps, s.form_slash_burn_time)
+			for e in Game.living_enemies():
+				var enemy := e as Actor
+				if Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED) \
+						and Game.in_cone(global_position, facing, enemy.global_position, s.form_slash_range, s.form_slash_arc_degrees, enemy.body_radius):
+					_form_hit(enemy, dmg, info)
+		1:
+			start_cooldown("basic", s.form_combo_interval)
+			form.hold("giro", 0.3)
+			var tw := create_tween()
+			form.rotation.y = 0.0
+			tw.tween_property(form, "rotation:y", -TAU, 0.28)
+			PhoenixFX.spin(self, s.form_spin_radius, 0.28)
+			for e in Game.living_enemies():
+				var enemy := e as Actor
+				var d := enemy.global_position - global_position
+				d.y = 0.0
+				if Game.flat_distance(enemy.global_position, global_position) <= s.form_spin_radius + enemy.body_radius \
+						and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
+					info["dir"] = d.normalized()
+					_form_hit(enemy, dmg, info.duplicate())
+		_:
+			start_cooldown("basic", s.form_combo_interval * 1.8)
+			_start_rush(facing, s.form_dive_distance, s.form_dive_time, "mergulho")
+	return true
+
+
+## Q da forma: leque de penas de fogo. Consome as Brasas em estouros.
+func featherstorm() -> bool:
+	if not cooldown_ready("fq") or ability_lock > 0.0 or not _rush.is_empty():
+		return false
+	var s := _fx()
+	start_cooldown("fq", s.feather_cooldown)
+	ability_lock = 0.25
+	form.hold("leque", 0.35)
+	var travel := 0.35
+	PhoenixFX.feather_fan(self, facing, s.feather_count, s.feather_arc_degrees, s.feather_range, travel, s.feather_burn_time)
+	var b := Basis.looking_at(Vector3(facing.x, 0, facing.z).normalized(), Vector3.UP)
+	var origin := global_position
+	var hits := {}
+	for i in s.feather_count:
+		var a := deg_to_rad(lerpf(-s.feather_arc_degrees * 0.5, s.feather_arc_degrees * 0.5, float(i) / float(maxi(1, s.feather_count - 1))))
+		var r := s.feather_range * (0.85 + 0.15 * absf(sin(i * 1.7)))
+		var end := origin + b * Vector3(sin(a) * r, 0, -cos(a) * r)
+		_add_burn(end, 0.6, s.feather_burn_dps, s.feather_burn_time, travel)
+		for e in Game.living_enemies():
+			var enemy := e as Actor
+			if Game.flat_distance_to_segment(enemy.global_position, origin, end) <= enemy.body_radius + 0.35 \
+					and Game.vertical_ok(origin.y, enemy, Game.REACH_RANGED):
+				var k := enemy.get_instance_id()
+				if not hits.has(k):
+					hits[k] = [enemy, 0, Game.flat_distance(origin, enemy.global_position)]
+				hits[k][1] += 1
+	for k in hits:
+		var enemy: Actor = hits[k][0]
+		var n: int = hits[k][1]
+		var delay := travel * clampf(hits[k][2] / s.feather_range, 0.1, 1.0)
+		get_tree().create_timer(delay).timeout.connect(_feathers_land.bind(enemy, n))
+	return true
+
+
+func _feathers_land(enemy: Actor, n: int) -> void:
+	if not is_instance_valid(enemy) or enemy.is_dead:
+		return
+	var s := _fx()
+	var dmg := s.feather_damage * n
+	if n >= s.feather_multi_hits:
+		dmg += s.feather_multi_bonus
+	var dir := enemy.global_position - global_position
+	dir.y = 0.0
+	var stacks := EmberMark.stacks_of(enemy)
+	var at := enemy.global_position
+	deal_damage(enemy, dmg, {"strength": Impact.STRONG if n >= s.feather_multi_hits else Impact.WEAK, "dir": dir.normalized(), "ability": true, "color": Color(0.4, 0.7, 1.0)})
+	# Brasas acumuladas estouram em volta do inimigo (mesmo se a pena matou).
+	if stacks <= 0:
+		return
+	EmberMark.of(enemy).clear()
+	PhoenixFX.ember_pop(at, stacks)
+	for e in Game.living_enemies():
+		var other := e as Actor
+		if Game.flat_distance(other.global_position, at) <= s.ember_pop_radius + other.body_radius:
+			var d := other.global_position - at
+			d.y = 0.0
+			deal_damage(other, s.ember_pop_damage * stacks, {"strength": Impact.STRONG, "dir": d.normalized() if d.length() > 0.01 else dir.normalized(), "ability": true, "color": Color(1.0, 0.7, 0.25)})
+
+
+## E da forma: dispara para a frente atravessando inimigos e explode no fim.
+func solar_rush() -> bool:
+	if not cooldown_ready("fe") or ability_lock > 0.0 or not _rush.is_empty():
+		return false
+	var s := _fx()
+	start_cooldown("fe", s.rush_cooldown)
+	_start_rush(facing, s.rush_distance, s.rush_time, "investida")
+	return true
+
+
+## Avanço em linha reta atravessando inimigos (para nas paredes).
+func _start_rush(dir: Vector3, distance: float, time: float, kind: String) -> void:
+	dir.y = 0.0
+	dir = dir.normalized()
+	var from := global_position
+	var to := from + dir * distance
+	var hit := Game.raycast_world(from + Vector3.UP * 0.8, to + Vector3.UP * 0.8)
+	if not hit.is_empty():
+		var p: Vector3 = hit["position"]
+		to = Vector3(p.x, from.y, p.z) - dir * 0.6
+	_rush = {"from": from, "to": to, "time": time, "t": 0.0, "kind": kind, "hit": {}, "embers": 0}
+	busy = true
+	invulnerable = true
+	# Atravessa inimigos; continua batendo nas paredes.
+	collision_mask = Game.LAYER_WORLD | Game.LAYER_WALKWAY
+	ability_lock = time + 0.1
+	facing = dir
+	form.set_pose("mergulho")
+	if kind == "investida":
+		PhoenixFX.rush_streak(from, to, time + 0.3)
+
+
+func _process_busy(delta: float) -> void:
+	if _rush.is_empty():
+		return
+	var s := _fx()
+	var prev := global_position
+	_rush["t"] += delta
+	var k := clampf(_rush["t"] / _rush["time"], 0.0, 1.0)
+	var target: Vector3 = (_rush["from"] as Vector3).lerp(_rush["to"], k)
+	velocity = (target - global_position) / maxf(delta, 0.001)
+	velocity.y = 0.0
+	move_and_slide()
+	var investida: bool = _rush["kind"] == "investida"
+	# Rastro de fogo e dano em quem foi atravessado.
+	_add_burn(global_position, 0.7 if investida else 0.55, s.rush_burn_dps if investida else s.form_slash_burn_dps, s.rush_burn_time if investida else 1.5)
+	for e in Game.living_enemies():
+		var enemy := e as Actor
+		var id := enemy.get_instance_id()
+		if (_rush["hit"] as Dictionary).has(id):
+			continue
+		if Game.flat_distance_to_segment(enemy.global_position, prev, global_position) <= enemy.body_radius + 0.6 \
+				and Game.vertical_ok(global_position.y, enemy, Game.REACH_RANGED):
+			_rush["hit"][id] = true
+			var info := {"strength": Impact.WEAK, "dir": facing, "ability": investida, "color": Color(0.4, 0.7, 1.0)}
+			if investida:
+				_rush["embers"] += EmberMark.stacks_of(enemy)
+				deal_damage(enemy, s.rush_pass_damage, info)
+			else:
+				_form_hit(enemy, s.form_combo_damage[2], info)
+	if k >= 1.0:
+		_end_rush()
+
+
+func _end_rush() -> void:
+	var s := _fx()
+	var kind: String = _rush["kind"]
+	var embers: int = _rush["embers"]
+	var hit_ids: Dictionary = _rush["hit"]
+	_rush = {}
+	busy = false
+	invulnerable = false
+	collision_mask = Game.MASK_HERO
+	velocity = Vector3.ZERO
+	var at := global_position
+	if kind == "investida":
+		form.hold("abrir", 0.45)
+		var bonus := minf(s.rush_bonus_max, s.rush_bonus_per_ember * embers)
+		PhoenixFX.solar_nova(at, s.rush_blast_radius, embers > 0)
+		for e in Game.living_enemies():
+			var enemy := e as Actor
+			if Game.flat_distance(enemy.global_position, at) <= s.rush_blast_radius + enemy.body_radius \
+					and Game.vertical_ok(at.y, enemy, Game.REACH_RANGED):
+				var d := enemy.global_position - at
+				d.y = 0.0
+				deal_damage(enemy, s.rush_blast_damage + bonus, {"strength": Impact.SPECIAL, "dir": d.normalized() if d.length() > 0.01 else facing, "ability": true, "color": Color(1.0, 0.6, 0.2)})
+	else:
+		form.set_pose("voo")
+		PhoenixFX.small_burst(at, s.form_dive_burst_radius)
+		for e in Game.living_enemies():
+			var enemy := e as Actor
+			if Game.flat_distance(enemy.global_position, at) <= s.form_dive_burst_radius + enemy.body_radius \
+					and Game.vertical_ok(at.y, enemy, Game.REACH_RANGED):
+				var d := enemy.global_position - at
+				d.y = 0.0
+				# Quem já levou o mergulho não ganha outra Brasa na explosão.
+				_form_hit(enemy, s.form_dive_burst_damage, {"strength": Impact.STRONG, "dir": d.normalized() if d.length() > 0.01 else facing, "ability": false, "color": Color(0.4, 0.7, 1.0)}, not hit_ids.has(enemy.get_instance_id()))
+
+
+## Fogo no chão: queima inimigos em cima, de meio em meio segundo.
+func _add_burn(at: Vector3, radius: float, dps: float, seconds: float, delay := 0.0) -> void:
+	if delay <= 0.0:
+		# Um pedaço de fogo por vez no mesmo lugar (o rastro chama todo quadro).
+		for b in _burns:
+			if Game.flat_distance(b[0], at) < radius * 0.8:
+				b[3] = maxf(b[3], seconds)
+				return
+		PhoenixFX.fire_patch(at, radius * 1.8, seconds, 0.0)
+	_burns.append([at, radius, dps, seconds + delay])
+
+
+func _tick_burns(delta: float) -> void:
+	if _burns.is_empty():
+		return
+	for b in _burns:
+		b[3] -= delta
+	_burns = _burns.filter(func(b): return b[3] > 0.0)
+	_burn_tick -= delta
+	if _burn_tick > 0.0:
+		return
+	_burn_tick = 0.5
+	var burned := {}
+	for b in _burns:
+		for e in Game.living_enemies():
+			var enemy := e as Actor
+			var id := enemy.get_instance_id()
+			if burned.has(id) or enemy.flying:
+				continue
+			if Game.flat_distance(enemy.global_position, b[0]) <= b[1] + enemy.body_radius:
+				burned[id] = true
+				deal_damage(enemy, b[2] * 0.5, {"strength": Impact.WEAK, "push": 0.0, "quiet": true, "color": Color(0.4, 0.7, 1.0)})
 
 
 # ---------------------------------------------------------------- passivas
@@ -264,6 +593,11 @@ func _process_regen(delta: float) -> void:
 ## ou ao pousar.
 func _air_motion(v: Vector3, move: Vector3, on_floor: bool, delta: float) -> Vector3:
 	var s := _fx()
+	# A fênix paira: em cima de um vão, não cai.
+	if in_form():
+		if not on_floor and v.y < 0.0 and Game.is_over_gap(global_position):
+			v.y = 0.0
+		return v
 	var holding := controlled and Input.is_action_pressed("jump")
 	if _gliding and (on_floor or not holding or _glide_travelled >= s.glide_max_distance):
 		_end_glide()
@@ -301,6 +635,11 @@ func is_gliding() -> bool:
 
 func go_down() -> void:
 	_end_glide()
+	if not _rush.is_empty():
+		_rush = {}
+		collision_mask = Game.MASK_HERO
+	if in_form():
+		exit_form()
 	super.go_down()
 	# O modelo tem animação de queda: não precisa deitar a cápsula.
 	visual.rotation.x = 0.0
@@ -317,6 +656,8 @@ func _on_damaged(amount: float, source: Node) -> void:
 
 func _ai_combat(target: Actor, delta: float) -> Vector3:
 	var s := _fx()
+	if in_form():
+		return _ai_form_combat(target, delta)
 	# Cura quem estiver mais ferido.
 	if cooldown_ready("e") and Game.party != null:
 		var hurt: Hero = null
@@ -340,4 +681,19 @@ func _ai_combat(target: Actor, delta: float) -> Vector3:
 	if d > s.claw_range * 0.8:
 		return navigate_to(target.global_position, delta)
 	claw_attack()
+	return Vector3.ZERO
+
+
+## IA na Forma Fênix (se o jogador trocar de herói no meio da forma).
+func _ai_form_combat(target: Actor, delta: float) -> Vector3:
+	var s := _fx()
+	face_towards(target.global_position)
+	var d := Game.flat_distance(global_position, target.global_position)
+	if cooldown_ready("fq") and d <= s.feather_range * 0.8:
+		featherstorm()
+	elif cooldown_ready("fe") and d >= 3.0 and d <= s.rush_distance * 0.8:
+		solar_rush()
+	if d > s.form_slash_range * 0.8:
+		return navigate_to(target.global_position, delta)
+	ember_dance()
 	return Vector3.ZERO

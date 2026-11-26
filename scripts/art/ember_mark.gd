@@ -8,6 +8,9 @@ const MAX := 3
 const GOLD := Color(1.0, 0.7, 0.25)
 
 var count: int = 0
+## Some sozinha depois deste tempo sem receber Brasa nova (0 = não some).
+var duration: float = 5.0
+var _left: float = 0.0
 var _embers: Array[Sprite3D] = []
 var _segments: Array[MeshInstance3D] = []
 var _time: float = 0.0
@@ -42,8 +45,25 @@ func _ready() -> void:
 	_set_count(0)
 
 
-func add(n: int = 1) -> void:
-	_set_count(mini(MAX, count + n))
+func add(n: int = 1, max_stacks: int = MAX) -> void:
+	_set_count(mini(mini(MAX, max_stacks), count + n))
+	_left = duration
+
+
+## Marca de Brasa do inimigo (cria na primeira vez).
+static func of(enemy: Node3D) -> EmberMark:
+	var m := enemy.get_node_or_null("Brasa") as EmberMark
+	if m == null:
+		m = EmberMark.new()
+		m.name = "Brasa"
+		enemy.add_child(m)
+	return m
+
+
+## Quantas Brasas o inimigo tem (0 se não tiver marca).
+static func stacks_of(enemy: Node3D) -> int:
+	var m := enemy.get_node_or_null("Brasa") as EmberMark
+	return m.count if m != null else 0
 
 
 func clear() -> void:
@@ -63,6 +83,16 @@ func _set_count(n: int) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	if count > 0:
+		var owner_actor := get_parent() as Actor
+		if owner_actor != null and owner_actor.is_dead:
+			clear()
+			return
+		if duration > 0.0:
+			_left -= delta
+			if _left <= 0.0:
+				clear()
+				return
 	for i in MAX:
 		var a := _time * 3.0 + TAU * i / MAX
 		_embers[i].position = Vector3(cos(a) * 0.6, 1.05 + sin(_time * 4.0 + i) * 0.12, sin(a) * 0.6)

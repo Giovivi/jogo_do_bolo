@@ -80,6 +80,7 @@ var _embers: GPUParticles3D
 var _sparks: GPUParticles3D
 var _light: OmniLight3D
 var _time: float = 0.0
+var _hold: float = 0.0
 var _body_y: float = 1.35 + HOVER * 0.4
 var _from: Dictionary = {}
 var _to: Dictionary = {}
@@ -113,6 +114,12 @@ func _ready() -> void:
 		_tail.scale = Vector3.ONE * 0.8
 	_from = _pose_values("voo")
 	_to = _from
+
+
+## Faz a pose `p` por `seconds` e depois volta a voar.
+func hold(p: String, seconds: float) -> void:
+	set_pose(p)
+	_hold = seconds
 
 
 func set_pose(p: String, instant := false) -> void:
@@ -156,6 +163,10 @@ func _pose_values(p: String) -> Dictionary:
 
 func _process(delta: float) -> void:
 	_time += delta
+	if _hold > 0.0:
+		_hold -= delta
+		if _hold <= 0.0 and pose != "voo":
+			set_pose("voo")
 	blend = minf(1.0, blend + delta / 0.12)
 	var v := _current()
 	var flap: float = sin(_time * 7.0) * 18.0 * v["flap"]
