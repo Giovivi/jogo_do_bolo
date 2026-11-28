@@ -73,6 +73,14 @@ Tudo em laser vermelho em camadas (núcleo #FFF4E8, vermelho #FF3038, sangue #B3
 - E, Ruptura Óptica: um raio sai dos óculos e abre em leque horizontal de 110° na altura do rosto, 7 m. 20 de dano, empurra 3,5 m. Recarga de 10 s.
 - R, Aniquilação Circular: dedos na têmpora e o alcance marcado no chão (cortado pelas paredes), depois um raio de 14 m dá uma volta no sentido horário em 1,2 s. 120 de dano e derruba; paredes bloqueiam. Deixa um rastro contínuo no chão que apaga atrás do raio. Invulnerável durante a habilidade.
 
+**Mistral** (no grupo desde o começo, por enquanto, para teste: tecla 3 na fase, 2 na escola)
+Controle de área com eletricidade e vento; gelo só na suprema. 80 de vida, 5,5 m/s. Olhos dourados que ficam azul-elétricos nos poderes e faixas turquesa flutuando na cintura.
+- Passiva, Carga Atmosférica: Q, E e R dão 1 carga (partículas girando na cintura). Com 3, o próximo clique, Q ou E sai fortalecido e as cargas zeram: clique com mais um salto, Q com 3,5 m de raio e puxão 1,6x, E com empurrão de 4,5 m e 24 de dano.
+- Clique, Descarga Relampejante: raio da mão no inimigo mirado (ou o mais perto da linha de mira), 10 de dano, 12 m, a cada 0,4 s. Salta para o inimigo mais perto (até 4 m) com metade do dano.
+- Q, Olho do Furacão: furacão no ponto mirado (até 10 m, para antes das paredes), 8/s no raio de 2,5 m por 3 s. Puxa para o centro até 4 m; soldado com escudo sofre 40% da atração, drones balançam. Recarga 9 s.
+- E, Investida de Vendaval: rajada em cone de 100° e 7 m, 18 de dano, interrompe e empurra 3 m. Recarga 10 s.
+- R, Geada Absoluta: braços erguidos, o gelo corre pelo chão até 12 m (paredes bloqueiam) e cristais brotam sob os inimigos: 100 de dano e congelados 3 s (2 s com escudo). Execução de 1,5 s, parada e invulnerável.
+
 **Grupo**
 - Troca 1 a 4 assume o aliado onde ele está, a câmera desliza em ~0,25 s, sem ataque de entrada.
 - O aliado na IA segue (2 a 4 m), luta com inimigos a menos de 8 m, volta se passar de 12 m e reanima quem caiu quando não há inimigo a 4 m.
@@ -146,6 +154,7 @@ Todos os valores ficam em `.tres` na pasta `data/`. Abra na Godot (clique duplo 
 |---|---|
 | `data/fenix.tres` | vida, velocidade, dash e todo o kit do Fênix |
 | `data/feixe.tres` | vida, velocidade, dash e todo o kit do Feixe |
+| `data/mistral.tres` | vida, velocidade, dash e todo o kit da Mistral |
 | `data/soldado.tres`, `data/soldado_escudo.tres`, `data/drone.tres` | inimigos |
 | `data/regras.tres` | câmera e corte, troca, reanimação, IA, tempo da cela, dano de queda |
 

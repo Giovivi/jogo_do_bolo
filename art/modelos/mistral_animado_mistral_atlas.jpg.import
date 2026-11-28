@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://bulb5wl1asw6g"
+path="res://.godot/imported/mistral_animado_mistral_atlas.jpg-706714d3ad4d58444e026b38fb9e63af.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "2417190c795c79d3a7cce2c9ab3052c6"
+}
+
+[deps]
+
+source_file="res://art/modelos/mistral_animado_mistral_atlas.jpg"
+dest_files=["res://.godot/imported/mistral_animado_mistral_atlas.jpg-706714d3ad4d58444e026b38fb9e63af.ctex"]
+
+[params]
+
+compress/mode=0
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1

@@ -28,6 +28,10 @@ var _stagger_immune: float = 0.0
 var _poise_damage: float = 0.0
 var _slow_fx: GPUParticles3D
 var _recoil_tween: Tween
+## Congelado (Geada Absoluta da Mistral): não anda, não atira, não é empurrado.
+var _frozen: float = 0.0
+## Atração externa deste quadro (Olho do Furacão), somada ao movimento.
+var pull_velocity := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -118,6 +122,9 @@ func _physics_process(delta: float) -> void:
 ## não pode agir.
 func _tick_hit_reaction(delta: float) -> bool:
 	_slow_time = maxf(0.0, _slow_time - delta)
+	if _frozen > 0.0:
+		_frozen = maxf(0.0, _frozen - delta)
+		return true
 	_stagger_immune = maxf(0.0, _stagger_immune - delta)
 	if _slow_fx != null:
 		_slow_fx.emitting = _slow_time > 0.0
@@ -141,7 +148,11 @@ func _tick_hit_reaction(delta: float) -> bool:
 func _apply_motion(move: Vector3, delta: float) -> void:
 	var kb := apply_knockback(delta)
 	var speed := stats.move_speed * (Impact.MELEE_SLOW if _slow_time > 0.0 else 1.0)
-	var v := move * speed + kb
+	var v := move * speed + kb + pull_velocity
+	pull_velocity = Vector3.ZERO
+	if _frozen > 0.0:
+		v = Vector3.ZERO
+		knockback_velocity = Vector3.ZERO
 	if flying:
 		v.y = 0.0
 	else:
@@ -150,6 +161,28 @@ func _apply_motion(move: Vector3, delta: float) -> void:
 			v.y = -0.5
 	velocity = v
 	move_and_slide()
+
+
+## Congela por `seconds` (a Geada Absoluta da Mistral): perde o tiro que
+## estava carregando e fica parado até o gelo quebrar.
+func freeze(seconds: float) -> void:
+	if is_dead:
+		return
+	_frozen = maxf(_frozen, seconds)
+	_cancel_windup()
+	knockback_velocity = Vector3.ZERO
+
+
+func is_frozen() -> bool:
+	return _frozen > 0.0
+
+
+func tick_visual_feedback(delta: float) -> void:
+	super.tick_visual_feedback(delta)
+	if _frozen > 0.0 and body_material != null and _flash_time <= 0.0:
+		body_material.albedo_color = Color(0.72, 0.9, 1.0)
+		body_material.emission_enabled = true
+		body_material.emission = Color(0.25, 0.6, 0.8)
 
 
 func _pick_target() -> Hero:

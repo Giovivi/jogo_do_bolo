@@ -4,6 +4,7 @@ extends Node3D
 
 const FENIX_STATS: FenixStats = preload("res://data/fenix.tres")
 const FEIXE_STATS: FeixeStats = preload("res://data/feixe.tres")
+const MISTRAL_STATS: MistralStats = preload("res://data/mistral.tres")
 
 var level: PostoVigia
 var party: Party
@@ -11,6 +12,7 @@ var rig: CameraRig
 var hud: HUD
 var fenix: Fenix
 var feixe: Feixe
+var mistral: Mistral
 var _rescued_this_run: bool = false
 var _card: MissionCard
 
@@ -57,6 +59,14 @@ func _ready() -> void:
 			feixe.in_party = true
 		add_child(feixe)
 		party.add_hero(feixe)
+
+	# Mistral: no grupo desde o começo, por enquanto, para teste.
+	mistral = Mistral.new()
+	mistral.name = "Mistral"
+	mistral.stats = MISTRAL_STATS
+	mistral.position = level.player_spawn + Vector3(-1.2, 0, 0.8)
+	add_child(mistral)
+	party.add_hero(mistral)
 
 	rig = CameraRig.new()
 	rig.name = "Camera"
