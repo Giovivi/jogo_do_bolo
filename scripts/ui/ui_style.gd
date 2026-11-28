@@ -17,6 +17,7 @@ const MUTE := Color(0.49, 0.54, 0.63)
 
 const PORTRAITS := {
 	"Fênix": "res://art/retratos/fenix.png",
+	"Mistral": "res://art/retratos/mistral.png",
 }
 
 
